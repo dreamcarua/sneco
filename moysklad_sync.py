@@ -15,7 +15,7 @@ snEco — МойСклад Data Sync v2
 import os
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -25,7 +25,11 @@ load_dotenv(Path(__file__).parent / ".env")
 
 TOKEN       = os.getenv("MOYSKLAD_TOKEN")
 BASE_URL    = "https://api.moysklad.ru/api/remap/1.2"
-DATE_FROM   = "2023-01-01 00:00:00"
+
+# Інкрементальний режим: тягнемо тільки останні 30 днів
+_sync_from  = datetime.now() - timedelta(days=30)
+DATE_FROM   = _sync_from.strftime("%Y-%m-%d 00:00:00")
+
 OUTPUT_DIR  = Path(__file__).parent / "data"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -96,10 +100,34 @@ def safe(val, key="name"):
 
 
 def save_excel(df: pd.DataFrame, name: str, reliable: bool = True):
+    """Upsert: мержить нові дані з існуючим файлом по колонці 'id' (якщо є)."""
     path = OUTPUT_DIR / f"{name}.xlsx"
-    df.to_excel(path, index=False)
     flag = "✅" if reliable else "⚠️ "
-    print(f"  {flag} data/{name}.xlsx  ({len(df)} рядків)")
+
+    if path.exists() and "id" in df.columns:
+        try:
+            existing = pd.read_excel(path)
+            if "id" in existing.columns:
+                # Видаляємо з існуючих ті рядки, що є в нових (оновлені записи)
+                existing = existing[~existing["id"].isin(df["id"])]
+                # Додаємо нові/оновлені рядки та сортуємо
+                merged = pd.concat([existing, df], ignore_index=True)
+                if "Дата" in merged.columns:
+                    merged = merged.sort_values("Дата").reset_index(drop=True)
+                df = merged
+                print(f"  {flag} data/{name}.xlsx  ({len(df)} рядків, upsert)")
+            else:
+                df.to_excel(path, index=False)
+                print(f"  {flag} data/{name}.xlsx  ({len(df)} рядків)")
+        except Exception as e:
+            print(f"  ⚠️  Не вдалось прочитати {name}.xlsx, перезаписую: {e}")
+            df.to_excel(path, index=False)
+            print(f"  {flag} data/{name}.xlsx  ({len(df)} рядків)")
+    else:
+        df.to_excel(path, index=False)
+        print(f"  {flag} data/{name}.xlsx  ({len(df)} рядків)")
+
+    df.to_excel(path, index=False)
 
 
 # ── Парсери ───────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════
 #  snEco — МойСклад Auto Sync Setup (Mac)
-#  Запускає moysklad_sync.py щопонеділка о 06:00
+#  Запускає moysklad_sync.py щодня о 06:00
 #  Запуск: bash setup_schedule_mac.sh
 # ═══════════════════════════════════════════════════════════
 
@@ -19,7 +19,7 @@ echo "  snEco — МойСклад Auto Sync Setup"
 echo "═══════════════════════════════════════════════"
 echo "  Папка:  $SCRIPT_DIR"
 echo "  Python: $PYTHON"
-echo "  Розклад: щопонеділка о 06:00"
+echo "  Розклад: щодня о 06:00"
 echo "═══════════════════════════════════════════════"
 echo ""
 
@@ -59,11 +59,9 @@ cat > "$PLIST_PATH" << EOF
     <key>WorkingDirectory</key>
     <string>$SCRIPT_DIR</string>
 
-    <!-- Щопонеділка о 06:00 -->
+    <!-- Щодня о 06:00 -->
     <key>StartCalendarInterval</key>
     <dict>
-        <key>Weekday</key>
-        <integer>1</integer>
         <key>Hour</key>
         <integer>6</integer>
         <key>Minute</key>
@@ -102,7 +100,7 @@ echo ""
 echo "═══════════════════════════════════════════════"
 echo "  ✅ Все налаштовано!"
 echo ""
-echo "  📅 Синхронізація: щопонеділка о 06:00"
+echo "  📅 Синхронізація: щодня о 06:00"
 echo "  📁 Дані:  $SCRIPT_DIR/data/"
 echo "  📋 Логи:  $SCRIPT_DIR/logs/"
 echo ""

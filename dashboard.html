@@ -127,7 +127,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </div>
   <div class="topbar-right">
-    <span class="badge badge-green">✓ Синхронізація щопонеділка</span>
+    <span class="badge badge-green">✓ Синхронізація щодня 06:00</span>
     <span class="badge badge-gray" id="lastUpdate">Оновлено сьогодні</span>
   </div>
 </div>
@@ -342,7 +342,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div><!-- /wrap -->
 
 <div class="footer">
-  snEco Analytics v2 · МойСклад API · Джерело правди: оплати ✅ та відвантаження ✅ · Оновлення: щопонеділка 06:00
+  snEco Analytics v2 · МойСклад API · Джерело правди: оплати ✅ та відвантаження ✅ · Оновлення: щодня 06:00
 </div>
 
 <script>
@@ -552,7 +552,7 @@ function buildAnnualTable(){
       <td><span class="tag ${cfClass}">${cf>=0?'+':''}${(cf/1e6).toFixed(2)}М</span></td>
       <td>${(a.shipments/1e6).toFixed(2)}М</td>
       <td>${a.orders.toLocaleString('uk-UA')}</td>
-      <td>${{'uk-UA':a.avg_order}.toLocaleString('uk-UA')}грн</td>
+      <td>${a.avg_order.toLocaleString('uk-UA')}грн</td>
       <td><span class="tag tr">${(a.returns/1000).toFixed(1)}К</span></td>
       <td>${yoyHtml}</td>
     </tr>`;
