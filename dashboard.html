@@ -491,7 +491,7 @@ function buildSeason(){
       {label:'Доходи',data:s.map(r=>Math.round(r.avg_income/1000)),borderColor:Y,backgroundColor:YF,borderWidth:2,pointBackgroundColor:Y,pointRadius:3},
       {label:'Відвантаження',data:s.map(r=>Math.round(r.avg_shipments/1000)),borderColor:G,backgroundColor:GF,borderWidth:2,pointBackgroundColor:G,pointRadius:3}
     ]
-  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:11}}}},scales:{r:{grid:{color:'#EEEEEE'},ticks:{display:false,backdropColor:'transparent'},pointLabels:{font:{size:12,weight:'600'}}}}  });
+  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:11}}}},scales:{r:{grid:{color:'#EEEEEE'},ticks:{display:false,backdropColor:'transparent'},pointLabels:{font:{size:12,weight:'600'}}}}}});
 }
 
 // ── HIST ───────────────────────────────────────────────────
@@ -500,7 +500,7 @@ function buildHist(){
   mkChart('histChart',{type:'bar',data:{
     labels:h.map(r=>r.label),
     datasets:[{label:'Платежів',data:h.map(r=>r.count),backgroundColor:[YF,YF,'rgba(254,191,39,.3)','rgba(254,191,39,.5)',Y,Y,'rgba(150,193,31,.5)',G].map(c=>c),borderRadius:5}]
-  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw} платежів`}}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'#F0F0E8'}}}  });
+  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw} платежів`}}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'#F0F0E8'}}}}});
 }
 
 // ── ANNUAL KPIS ────────────────────────────────────────────
