@@ -478,8 +478,9 @@ function buildAnnual(){
     {label:'Доходи',data:rows.map(r=>Math.round(r.income/1000000*10)/10),backgroundColor:Y,borderRadius:6},
     {label:'Витрати',data:rows.map(r=>Math.round(r.expenses/1000000*10)/10),backgroundColor:RF,borderColor:R,borderWidth:1.5,borderRadius:6},
     {label:'Відвантаження',data:rows.map(r=>Math.round(r.shipments/1000000*10)/10),backgroundColor:GF,borderColor:G,borderWidth:1.5,borderRadius:6},
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:11}}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.raw}М грн`}}},scales:{x:{grid:{display:false}},y:{grid:{color:'#F0F0E8'},ticks:{callback:v=>v+'М'}}}  });
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:11}}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.raw}М грн`}}},scales:{x:{grid:{display:false}},y:{grid:{color:'#F0F0E8'},ticks:{callback:v=>v+'М'}}}  }});
 }
+
 
 // ── SEASONALITY ────────────────────────────────────────────
 function buildSeason(){
