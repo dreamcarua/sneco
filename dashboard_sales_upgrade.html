@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>snEco — Sales Analytics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --y:#FEBF27;--g:#96C11F;--d:#1E1E1E;--bg:#F4F4EF;--card:#fff;
+  --muted:#8a8a8a;--border:#E5E5DC;--red:#E84040;--blue:#3B82F6;
+  --yf:rgba(254,191,39,.13);--gf:rgba(150,193,31,.12);--rf:rgba(232,64,64,.10);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--d);font-size:14px;min-height:100vh}
+
+/* ─── TOPBAR ─── */
+.topbar{background:var(--d);height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:200;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-box{width:32px;height:32px;background:var(--y);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:var(--d);letter-spacing:-0.5px}
+.logo-text{color:#fff;font-size:15px;font-weight:700;letter-spacing:-.3px}
+.logo-sub{color:rgba(255,255,255,.4);font-size:11px;margin-top:1px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:rgba(150,193,31,.2);color:var(--g);border:1px solid rgba(150,193,31,.3)}
+.badge-gray{background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.1)}
+
+/* ─── FILTERS ─── */
+.filterbar{background:#fff;border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;position:sticky;top:56px;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.flabel{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-right:2px}
+.fbtn{padding:5px 14px;border-radius:20px;border:1.5px solid var(--border);background:transparent;font-size:12px;font-weight:500;color:#666;cursor:pointer;transition:all .15s}
+.fbtn:hover{border-color:var(--y);color:var(--d)}
+.fbtn.on{background:var(--y);border-color:var(--y);color:var(--d);font-weight:700}
+.fbtn.on-g{background:var(--g);border-color:var(--g);color:#fff;font-weight:700}
+.fsep{width:1px;height:18px;background:var(--border);margin:0 4px}
+
+/* ─── LAYOUT ─── */
+.wrap{padding:20px 24px;max-width:1440px;margin:0 auto}
+.sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:24px 0 12px;display:flex;align-items:center;gap:8px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+.g1{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
+.gfull{grid-column:1/-1}
+@media(max-width:960px){.g2,.g3,.g4{grid-template-columns:1fr 1fr}.gfull{grid-column:1/-1}}
+@media(max-width:620px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+/* ─── KPI CARDS ─── */
+.kpi{background:var(--card);border-radius:12px;padding:16px 18px;border:1px solid var(--border);position:relative;overflow:hidden;transition:transform .15s,box-shadow .15s}
+.kpi:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.kpi.dark{background:var(--d);border-color:var(--d)}
+.kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px}
+.kpi.cy::after{background:var(--y)}
+.kpi.cg::after{background:var(--g)}
+.kpi.cr::after{background:var(--red)}
+.kpi.cb::after{background:var(--blue)}
+.kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px}
+.kpi.dark .kpi-lbl{color:rgba(255,255,255,.4)}
+.kpi-val{font-size:26px;font-weight:800;color:var(--d);line-height:1.1}
+.kpi.dark .kpi-val{color:var(--y)}
+.kpi-unit{font-size:13px;font-weight:600;color:var(--muted);margin-left:1px}
+.kpi.dark .kpi-unit{color:rgba(255,255,255,.3)}
+.kpi-foot{display:flex;align-items:center;gap:6px;margin-top:8px}
+.kpi-sub{font-size:11px;color:var(--muted)}
+.kpi.dark .kpi-sub{color:rgba(255,255,255,.3)}
+.pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;gap:2px}
+.pill-up{background:rgba(150,193,31,.12);color:#5a8a00}
+.pill-dn{background:rgba(232,64,64,.1);color:var(--red)}
+.pill-neu{background:var(--yf);color:#996600}
+
+/* ─── CHART CARDS ─── */
+.cc{background:var(--card);border-radius:12px;padding:18px 20px;border:1px solid var(--border)}
+.cc-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.cc-title{font-size:14px;font-weight:700;color:var(--d)}
+.cc-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.cc-legend{display:flex;gap:12px;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#666}
+.leg-dot{width:10px;height:10px;border-radius:50%}
+.leg-line{width:14px;height:3px;border-radius:2px}
+.chart-h280{height:280px;position:relative}
+.chart-h240{height:240px;position:relative}
+.chart-h200{height:200px;position:relative}
+.chart-h320{height:320px;position:relative}
+
+/* ─── DATA TABLE ─── */
+.dt{width:100%;border-collapse:collapse;font-size:13px}
+.dt th{text-align:left;padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:2px solid var(--border);white-space:nowrap}
+.dt td{padding:8px 12px;border-bottom:1px solid var(--border)}
+.dt tr:last-child td{border:none}
+.dt tr:hover td{background:#FAFAF5}
+.rank{font-weight:800;color:var(--y);font-size:13px;width:28px}
+.bar-wrap{position:relative;height:6px;background:var(--yf);border-radius:3px;min-width:80px}
+.bar-fill{position:absolute;top:0;left:0;height:6px;border-radius:3px;background:var(--y)}
+.bar-fill.g{background:var(--g)}
+.tag{display:inline-flex;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600}
+.ty{background:var(--yf);color:#996600}
+.tg{background:var(--gf);color:#4a7500}
+.tr{background:var(--rf);color:var(--red)}
+
+/* ─── METRIC TOGGLE ─── */
+.metric-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.mtbtn{padding:5px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;background:transparent;color:var(--muted);display:flex;align-items:center;gap:5px}
+.mtbtn .dot{width:8px;height:8px;border-radius:50%}
+.mtbtn.on{border-color:currentColor}
+.mtbtn.on-y{color:#996600;border-color:var(--y);background:var(--yf)}
+.mtbtn.on-g{color:#4a7500;border-color:var(--g);background:var(--gf)}
+.mtbtn.on-r{color:var(--red);border-color:var(--red);background:var(--rf)}
+.mtbtn.on-b{color:var(--blue);border-color:var(--blue);background:rgba(59,130,246,.08)}
+
+/* ─── ALERT ─── */
+.alert{background:rgba(254,191,39,.08);border:1px solid rgba(254,191,39,.3);border-radius:8px;padding:10px 14px;font-size:12px;color:#806000;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.alerts{display:grid;grid-template-columns:1.2fr .9fr .9fr;gap:10px}
+.alert-soft{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.alert-soft b{color:var(--d)}
+.alert-soft .muted{color:var(--muted);font-size:11px;margin-top:4px}
+@media(max-width:960px){.alerts{grid-template-columns:1fr}}
+
+/* ─── FOOTER ─── */
+.footer{text-align:center;padding:20px;color:var(--muted);font-size:11px;border-top:1px solid var(--border);margin-top:20px}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-box">sn</div>
+    <div>
+      <div class="logo-text">snEco Analytics</div>
+      <div class="logo-sub">МойСклад · 2023–2026</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="badge badge-green">✓ Синхронізація щодня 06:00</span>
+    <span class="badge badge-gray" id="lastUpdate">Оновлено сьогодні</span>
+  </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filterbar">
+  <span class="flabel">Рік:</span>
+  <button class="fbtn on" onclick="setFilter('year','all',this)">Всі</button>
+  <button class="fbtn" onclick="setFilter('year','2023',this)">2023</button>
+  <button class="fbtn" onclick="setFilter('year','2024',this)">2024</button>
+  <button class="fbtn" onclick="setFilter('year','2025',this)">2025</button>
+  <button class="fbtn" onclick="setFilter('year','2026',this)">2026</button>
+  <div class="fsep"></div>
+  <span class="flabel">Квартал:</span>
+  <button class="fbtn on" onclick="setFilter('q','all',this)">Всі</button>
+  <button class="fbtn" onclick="setFilter('q','Q1',this)">Q1</button>
+  <button class="fbtn" onclick="setFilter('q','Q2',this)">Q2</button>
+  <button class="fbtn" onclick="setFilter('q','Q3',this)">Q3</button>
+  <button class="fbtn" onclick="setFilter('q','Q4',this)">Q4</button>
+  <div class="fsep"></div>
+  <span class="flabel">Показати:</span>
+  <button class="fbtn on on-y" id="togInc" onclick="toggleMetric('income',this)"><span class="dot" style="background:var(--y)"></span>Доходи</button>
+  <button class="fbtn on on-r" id="togExp" onclick="toggleMetric('expenses',this)"><span class="dot" style="background:var(--red)"></span>Витрати</button>
+  <button class="fbtn on on-g" id="togShip" onclick="toggleMetric('shipments',this)"><span class="dot" style="background:var(--g)"></span>Відвантаження</button>
+  <button class="fbtn on on-b" id="togRet" onclick="toggleMetric('returns',this)"><span class="dot" style="background:var(--blue)"></span>Повернення</button>
+</div>
+
+<div class="wrap">
+
+<!-- KPIs -->
+<div class="sec">Ключові показники</div>
+<div class="g1">
+  <div class="kpi dark cy">
+    <div class="kpi-lbl">Загальна виручка</div>
+    <div class="kpi-val">109<span class="kpi-unit">.1М грн</span></div>
+    <div class="kpi-foot"><span class="kpi-sub">Оплати 2023–2026 ✅</span></div>
+  </div>
+  <div class="kpi cy">
+    <div class="kpi-lbl">Витрати (вих. оплати)</div>
+    <div class="kpi-val">108<span class="kpi-unit">.8М грн</span></div>
+    <div class="kpi-foot"><span class="pill pill-neu">~99.7% від виручки</span></div>
+  </div>
+  <div class="kpi cg">
+    <div class="kpi-lbl">Відвантаження</div>
+    <div class="kpi-val">112<span class="kpi-unit">.1М грн</span></div>
+    <div class="kpi-foot"><span class="kpi-sub">✅ Точні дані</span></div>
+  </div>
+  <div class="kpi cy">
+    <div class="kpi-lbl">Повернення</div>
+    <div class="kpi-val">581<span class="kpi-unit">К грн</span></div>
+    <div class="kpi-foot"><span class="pill pill-up">✓ Лише 0.52%</span></div>
+  </div>
+  <div class="kpi cg">
+    <div class="kpi-lbl">Замовлень всього</div>
+    <div class="kpi-val">21<span class="kpi-unit">510</span></div>
+    <div class="kpi-foot"><span class="kpi-sub">відвантажень 2023–2026</span></div>
+  </div>
+  <div class="kpi cy">
+    <div class="kpi-lbl">Середній чек (медіана)</div>
+    <div class="kpi-val">2<span class="kpi-unit">247 грн</span></div>
+    <div class="kpi-foot"><span class="kpi-sub">Середнє: 7 322 грн</span></div>
+  </div>
+</div>
+
+<!-- FILTERED SUMMARY -->
+<div class="sec">Поточний зріз</div>
+<div class="g1" id="filteredKpis"></div>
+<div class="alerts" id="alertsRow" style="margin-top:12px"></div>
+
+<!-- ANNUAL KPIs -->
+<div class="sec">По роках</div>
+<div class="g4" id="annualKpis"></div>
+
+<!-- MAIN CHART -->
+<div class="sec">Динаміка виручки і витрат</div>
+<div class="cc gfull">
+  <div class="cc-head">
+    <div>
+      <div class="cc-title">Щомісячна динаміка, тис. грн</div>
+      <div class="cc-sub">Доходи, витрати, відвантаження та повернення — фільтруйте вгорі</div>
+    </div>
+    <div class="cc-legend">
+      <span class="leg-item"><span class="leg-line" style="background:var(--y)"></span>Доходи</span>
+      <span class="leg-item"><span class="leg-line" style="background:var(--red)"></span>Витрати</span>
+      <span class="leg-item"><span class="leg-line" style="background:var(--g)"></span>Відвантаження</span>
+      <span class="leg-item"><span class="leg-dot" style="background:var(--blue)"></span>Повернення</span>
+    </div>
+  </div>
+  <div class="chart-h280"><canvas id="mainChart"></canvas></div>
+</div>
+
+<!-- CASHFLOW + QUARTERLY -->
+<div class="g2">
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Чистий Cash Flow (місяць)</div>
+        <div class="cc-sub">Доходи мінус витрати, тис. грн</div>
+      </div>
+    </div>
+    <div class="chart-h240"><canvas id="cashflowChart"></canvas></div>
+  </div>
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Поквартальна динаміка</div>
+        <div class="cc-sub">Доходи і витрати по кварталах</div>
+      </div>
+    </div>
+    <div class="chart-h240"><canvas id="quarterChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ANNUAL COMPARISON + RETURNS -->
+<div class="g2">
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Порівняння по роках</div>
+        <div class="cc-sub">Доходи / Витрати / Відвантаження, млн грн</div>
+      </div>
+    </div>
+    <div class="chart-h240"><canvas id="annualChart"></canvas></div>
+  </div>
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Динаміка повернень</div>
+        <div class="cc-sub">Сума повернень по місяцях, тис. грн</div>
+      </div>
+    </div>
+    <div class="chart-h240"><canvas id="returnsChart"></canvas></div>
+  </div>
+</div>
+
+<!-- AVG ORDER + ORDERS COUNT -->
+<div class="g2">
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Середній чек замовлення</div>
+        <div class="cc-sub">Середня сума відвантаження по місяцях, грн</div>
+      </div>
+    </div>
+    <div class="chart-h240"><canvas id="avgOrderChart"></canvas></div>
+  </div>
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Кількість замовлень</div>
+        <div class="cc-sub">Відвантажень на місяць</div>
+      </div>
+    </div>
+    <div class="chart-h240"><canvas id="ordersChart"></canvas></div>
+  </div>
+</div>
+
+<!-- SEASONALITY + PAYMENT DIST -->
+<div class="g2">
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Сезонність (2023–2025 avg)</div>
+        <div class="cc-sub">Середньомісячна виручка і відвантаження</div>
+      </div>
+    </div>
+    <div class="chart-h240"><canvas id="seasonChart"></canvas></div>
+  </div>
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Розподіл розміру оплат</div>
+        <div class="cc-sub">Кількість платежів по сумі</div>
+      </div>
+    </div>
+    <div class="chart-h240"><canvas id="histChart"></canvas></div>
+  </div>
+</div>
+
+<!-- STOCK -->
+<div class="sec">Залишки на складі</div>
+<div class="cc">
+  <div class="cc-head">
+    <div>
+      <div class="cc-title">Поточні залишки — топ позиції</div>
+      <div class="cc-sub">Включає сировину, упаковку і готову продукцію</div>
+    </div>
+    <input id="stockSearch" onkeyup="filterTable('stockBody',this.value)" placeholder="🔍 Пошук..." style="padding:6px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;outline:none">
+  </div>
+  <div style="overflow-x:auto">
+    <table class="dt">
+      <thead><tr>
+        <th>#</th><th>Товар</th>
+        <th>Залишок</th><th>Резерв</th><th>Доступно</th>
+        <th>Обсяг наявності</th>
+      </tr></thead>
+      <tbody id="stockBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ANNUAL TABLE -->
+<div class="sec">Зведена таблиця по роках</div>
+<div class="cc">
+  <div style="overflow-x:auto">
+    <table class="dt">
+      <thead><tr>
+        <th>Рік</th><th>Доходи</th><th>Витрати</th><th>Cash Flow</th>
+        <th>Відвантажень</th><th>Замовлень</th><th>Середній чек</th>
+        <th>Повернення</th><th>Зростання YoY</th>
+      </tr></thead>
+      <tbody id="annualTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+
+<div class="footer">
+  snEco Analytics v2 · МойСклад API · Джерело правди: оплати ✅ та відвантаження ✅ · Оновлення: щодня 06:00
+</div>
+
+<script>
+const D = {"monthly": [{"ym": "2023-01", "year": "2023", "month": 1, "income": 1929365, "outgoing": 1634411, "returns": 41314, "expenses": 1593098, "net": 294954, "shipments": 1802698, "orders": 934, "avg_order": 1930}, {"ym": "2023-02", "year": "2023", "month": 2, "income": 1513186, "outgoing": 1673414, "returns": 343, "expenses": 1673072, "net": -160228, "shipments": 1748927, "orders": 811, "avg_order": 2157}, {"ym": "2023-03", "year": "2023", "month": 3, "income": 1560612, "outgoing": 1717059, "returns": 2839, "expenses": 1714221, "net": -156447, "shipments": 1945366, "orders": 755, "avg_order": 2577}, {"ym": "2023-04", "year": "2023", "month": 4, "income": 1742452, "outgoing": 1443341, "returns": 18278, "expenses": 1425064, "net": 299111, "shipments": 1682054, "orders": 644, "avg_order": 2612}, {"ym": "2023-05", "year": "2023", "month": 5, "income": 2259896, "outgoing": 1666147, "returns": 583, "expenses": 1665564, "net": 593749, "shipments": 2584143, "orders": 566, "avg_order": 4566}, {"ym": "2023-06", "year": "2023", "month": 6, "income": 1817524, "outgoing": 1702988, "returns": 701, "expenses": 1702286, "net": 114536, "shipments": 2227075, "orders": 420, "avg_order": 5303}, {"ym": "2023-07", "year": "2023", "month": 7, "income": 1675491, "outgoing": 1331917, "returns": 10713, "expenses": 1321204, "net": 343574, "shipments": 1695310, "orders": 345, "avg_order": 4914}, {"ym": "2023-08", "year": "2023", "month": 8, "income": 2182356, "outgoing": 1637687, "returns": 4210, "expenses": 1633476, "net": 544669, "shipments": 2247084, "orders": 375, "avg_order": 5992}, {"ym": "2023-09", "year": "2023", "month": 9, "income": 1812482, "outgoing": 2294179, "returns": 3083, "expenses": 2291095, "net": -481697, "shipments": 1915878, "orders": 435, "avg_order": 4404}, {"ym": "2023-10", "year": "2023", "month": 10, "income": 1899552, "outgoing": 1700984, "returns": 27961, "expenses": 1673023, "net": 198568, "shipments": 2082177, "orders": 517, "avg_order": 4027}, {"ym": "2023-11", "year": "2023", "month": 11, "income": 1630794, "outgoing": 1489888, "returns": 36325, "expenses": 1453563, "net": 140906, "shipments": 2388610, "orders": 550, "avg_order": 4343}, {"ym": "2023-12", "year": "2023", "month": 12, "income": 2135902, "outgoing": 1893497, "returns": 10297, "expenses": 1883200, "net": 242405, "shipments": 1854540, "orders": 622, "avg_order": 2982}, {"ym": "2024-01", "year": "2024", "month": 1, "income": 2851473, "outgoing": 1438010, "returns": 5751, "expenses": 1432259, "net": 1413463, "shipments": 2541614, "orders": 725, "avg_order": 3506}, {"ym": "2024-02", "year": "2024", "month": 2, "income": 1598054, "outgoing": 2607722, "returns": 9986, "expenses": 2597736, "net": -1009668, "shipments": 1916144, "orders": 449, "avg_order": 4268}, {"ym": "2024-03", "year": "2024", "month": 3, "income": 2634809, "outgoing": 2505128, "returns": 13320, "expenses": 2491808, "net": 129681, "shipments": 2332845, "orders": 375, "avg_order": 6221}, {"ym": "2024-04", "year": "2024", "month": 4, "income": 3024658, "outgoing": 2305211, "returns": 3129, "expenses": 2302083, "net": 719447, "shipments": 3911427, "orders": 668, "avg_order": 5855}, {"ym": "2024-05", "year": "2024", "month": 5, "income": 2711947, "outgoing": 3276062, "returns": 12860, "expenses": 3263202, "net": -564115, "shipments": 3948906, "orders": 646, "avg_order": 6113}, {"ym": "2024-06", "year": "2024", "month": 6, "income": 2534010, "outgoing": 2705258, "returns": 4058, "expenses": 2701201, "net": -171248, "shipments": 2792260, "orders": 586, "avg_order": 4765}, {"ym": "2024-07", "year": "2024", "month": 7, "income": 2870522, "outgoing": 2594469, "returns": 6650, "expenses": 2587819, "net": 276053, "shipments": 3153984, "orders": 586, "avg_order": 5382}, {"ym": "2024-08", "year": "2024", "month": 8, "income": 2876944, "outgoing": 2790907, "returns": 7044, "expenses": 2783863, "net": 86037, "shipments": 2799079, "orders": 492, "avg_order": 5689}, {"ym": "2024-09", "year": "2024", "month": 9, "income": 3032579, "outgoing": 3308820, "returns": 14990, "expenses": 3293830, "net": -276241, "shipments": 2609216, "orders": 480, "avg_order": 5436}, {"ym": "2024-10", "year": "2024", "month": 10, "income": 4600323, "outgoing": 3862942, "returns": 96510, "expenses": 3766432, "net": 737381, "shipments": 2861845, "orders": 462, "avg_order": 6194}, {"ym": "2024-11", "year": "2024", "month": 11, "income": 2975990, "outgoing": 3392177, "returns": 2731, "expenses": 3389445, "net": -416187, "shipments": 2457341, "orders": 416, "avg_order": 5907}, {"ym": "2024-12", "year": "2024", "month": 12, "income": 3326015, "outgoing": 3209542, "returns": 3318, "expenses": 3206224, "net": 116473, "shipments": 2833188, "orders": 450, "avg_order": 6296}, {"ym": "2025-01", "year": "2025", "month": 1, "income": 3366876, "outgoing": 2630410, "returns": 2926, "expenses": 2627484, "net": 736466, "shipments": 2743733, "orders": 424, "avg_order": 6471}, {"ym": "2025-02", "year": "2025", "month": 2, "income": 2368009, "outgoing": 2191821, "returns": 18746, "expenses": 2173075, "net": 176188, "shipments": 3227521, "orders": 678, "avg_order": 4760}, {"ym": "2025-03", "year": "2025", "month": 3, "income": 2990444, "outgoing": 3363848, "returns": 2884, "expenses": 3360963, "net": -373404, "shipments": 3304602, "orders": 679, "avg_order": 4867}, {"ym": "2025-04", "year": "2025", "month": 4, "income": 3181957, "outgoing": 2823585, "returns": 9671, "expenses": 2813915, "net": 358372, "shipments": 3555657, "orders": 593, "avg_order": 5996}, {"ym": "2025-05", "year": "2025", "month": 5, "income": 3813949, "outgoing": 3728755, "returns": 5623, "expenses": 3723132, "net": 85194, "shipments": 3882833, "orders": 669, "avg_order": 5804}, {"ym": "2025-06", "year": "2025", "month": 6, "income": 4104242, "outgoing": 4616064, "returns": 40880, "expenses": 4575185, "net": -511822, "shipments": 4163358, "orders": 631, "avg_order": 6598}, {"ym": "2025-07", "year": "2025", "month": 7, "income": 4239356, "outgoing": 3256559, "returns": 34296, "expenses": 3222263, "net": 982797, "shipments": 4042081, "orders": 619, "avg_order": 6530}, {"ym": "2025-08", "year": "2025", "month": 8, "income": 3846467, "outgoing": 4841590, "returns": 8158, "expenses": 4833432, "net": -995123, "shipments": 3468785, "orders": 569, "avg_order": 6096}, {"ym": "2025-09", "year": "2025", "month": 9, "income": 3750432, "outgoing": 3261432, "returns": 17890, "expenses": 3243541, "net": 489000, "shipments": 4466252, "orders": 600, "avg_order": 7444}, {"ym": "2025-10", "year": "2025", "month": 10, "income": 3940404, "outgoing": 4265160, "returns": 18249, "expenses": 4246910, "net": -324756, "shipments": 4015623, "orders": 483, "avg_order": 8314}, {"ym": "2025-11", "year": "2025", "month": 11, "income": 3654600, "outgoing": 4539634, "returns": 4840, "expenses": 4534794, "net": -885034, "shipments": 3392084, "orders": 461, "avg_order": 7358}, {"ym": "2025-12", "year": "2025", "month": 12, "income": 3834765, "outgoing": 5380134, "returns": 25529, "expenses": 5354605, "net": -1545369, "shipments": 3606916, "orders": 535, "avg_order": 6742}, {"ym": "2026-01", "year": "2026", "month": 1, "income": 3365626, "outgoing": 3826674, "returns": 35177, "expenses": 3791497, "net": -461048, "shipments": 3508562, "orders": 469, "avg_order": 7481}, {"ym": "2026-02", "year": "2026", "month": 2, "income": 3206502, "outgoing": 4164656, "returns": 18263, "expenses": 4146393, "net": -958154, "shipments": 3836870, "orders": 488, "avg_order": 7862}, {"ym": "2026-03", "year": "2026", "month": 3, "income": 2193491, "outgoing": 2285238, "returns": 1130, "expenses": 2284108, "net": -91747, "shipments": 2552216, "orders": 303, "avg_order": 8423}], "annual": [{"year": 2023, "income": 22159610, "expenses": 20028867, "returns": 156645, "shipments": 24173860, "orders": 6974, "avg_order": 3466, "yoy": null, "partial": false}, {"year": 2024, "income": 35037324, "expenses": 33815902, "returns": 180346, "shipments": 34157848, "orders": 6335, "avg_order": 5392, "yoy": 58.1, "partial": false}, {"year": 2025, "income": 43091500, "expenses": 44709299, "returns": 189693, "shipments": 43869446, "orders": 6941, "avg_order": 6320, "yoy": 23.0, "partial": false}, {"year": 2026, "income": 8765619, "expenses": 10221998, "returns": 54570, "shipments": 9897648, "orders": 1260, "avg_order": 7855, "yoy": -79.7, "partial": true}], "quarterly": [{"q": "2023Q1", "income": 5003163, "expenses": 4980390, "returns": 44495, "shipments": 5496990, "orders": 2500}, {"q": "2023Q2", "income": 5819872, "expenses": 4792914, "returns": 19562, "shipments": 6493272, "orders": 1630}, {"q": "2023Q3", "income": 5670328, "expenses": 5245776, "returns": 18007, "shipments": 5858271, "orders": 1155}, {"q": "2023Q4", "income": 5666247, "expenses": 5009787, "returns": 74582, "shipments": 6325327, "orders": 1689}, {"q": "2024Q1", "income": 7084336, "expenses": 6521803, "returns": 29056, "shipments": 6790602, "orders": 1549}, {"q": "2024Q2", "income": 8270615, "expenses": 8266486, "returns": 20046, "shipments": 10652593, "orders": 1900}, {"q": "2024Q3", "income": 8780045, "expenses": 8665512, "returns": 28684, "shipments": 8562279, "orders": 1558}, {"q": "2024Q4", "income": 10902328, "expenses": 10362101, "returns": 102560, "shipments": 8152373, "orders": 1328}, {"q": "2025Q1", "income": 8725329, "expenses": 8161522, "returns": 24557, "shipments": 9275857, "orders": 1781}, {"q": "2025Q2", "income": 11100148, "expenses": 11112231, "returns": 56173, "shipments": 11601847, "orders": 1893}, {"q": "2025Q3", "income": 11836254, "expenses": 11299236, "returns": 60344, "shipments": 11977118, "orders": 1788}, {"q": "2025Q4", "income": 11429769, "expenses": 14136309, "returns": 48618, "shipments": 11014624, "orders": 1479}, {"q": "2026Q1", "income": 8765619, "expenses": 10221998, "returns": 54570, "shipments": 9897648, "orders": 1260}], "seasonality": [{"month": 1, "avg_income": 6492, "avg_shipments": 3403}, {"month": 2, "avg_income": 5184, "avg_shipments": 3557}, {"month": 3, "avg_income": 6923, "avg_shipments": 4192}, {"month": 4, "avg_income": 7066, "avg_shipments": 4803}, {"month": 5, "avg_income": 6821, "avg_shipments": 5537}, {"month": 6, "avg_income": 7308, "avg_shipments": 5609}, {"month": 7, "avg_income": 7255, "avg_shipments": 5736}, {"month": 8, "avg_income": 8163, "avg_shipments": 5930}, {"month": 9, "avg_income": 7487, "avg_shipments": 5935}, {"month": 10, "avg_income": 7951, "avg_shipments": 6128}, {"month": 11, "avg_income": 7279, "avg_shipments": 5773}, {"month": 12, "avg_income": 7190, "avg_shipments": 5162}], "hist": [{"label": "0–500", "count": 2562}, {"label": "500–1К", "count": 2041}, {"label": "1К–2К", "count": 2376}, {"label": "2К–5К", "count": 3239}, {"label": "5К–10К", "count": 2297}, {"label": "10К–25К", "count": 1576}, {"label": "25К–50К", "count": 491}, {"label": "50К+", "count": 313}], "stock": [{"name": "Упаковка snEco «Cheddar» (export), 28г.", "stock": 53187, "reserve": 0, "available": 53187, "sum": 0}, {"name": "Упаковка snEco «Прімаджіо», 28г", "stock": 44304, "reserve": 0, "available": 44304, "sum": 0}, {"name": "Упаковка snEco «Gouda» (export), 28г.", "stock": 43335, "reserve": 0, "available": 43335, "sum": 0}, {"name": "Упаковка snEco «Космічний», 28г.", "stock": 41865, "reserve": 0, "available": 41865, "sum": 0}, {"name": "Упаковка snEco «Емменталь», 28г", "stock": 33319, "reserve": 0, "available": 33319, "sum": 0}, {"name": "Упаковка snEco «Чеддер», 28г.", "stock": 28766, "reserve": 0, "available": 28766, "sum": 0}, {"name": "Упаковка snEco «Мікс Прімаджіо+Чед», 28г.", "stock": 27370, "reserve": 0, "available": 27370, "sum": 0}, {"name": "Упаковка snEco «Сулугуни», 28г.", "stock": 21524, "reserve": 0, "available": 21524, "sum": 0}, {"name": "Упаковка snEco «Гауда», 28г.", "stock": 20789, "reserve": 0, "available": 20789, "sum": 0}, {"name": "Упаковка snEco «Моцарелла», 28г.", "stock": 13971, "reserve": 0, "available": 13971, "sum": 0}, {"name": "Короб фірмовий ShowBox snEco", "stock": 10219, "reserve": 0, "available": 10219, "sum": 0}, {"name": "Упаковка snEco Суперфуд, 28г.", "stock": 9563, "reserve": 0, "available": 9563, "sum": 0}, {"name": "Упаковка П'яна Вишня+snEco \"Пармезан\", 30г", "stock": 6298, "reserve": 0, "available": 6298, "sum": 0}, {"name": "Стікер \"Прімаджіо\" 14 г", "stock": 4792, "reserve": 0, "available": 4792, "sum": 0}, {"name": "Стікер \"Моцарелла\" 14 г", "stock": 4778, "reserve": 0, "available": 4778, "sum": 0}, {"name": "Стікер \"Сулугуні\" 14 г", "stock": 4465, "reserve": 0, "available": 4465, "sum": 0}, {"name": "Сир сушений snEco \"Сулугуні\", 28г", "stock": 2770, "reserve": 295, "available": 2475, "sum": 0}, {"name": "Короб фірмовий ShowBox GRYZBERI", "stock": 2727, "reserve": 0, "available": 2727, "sum": 0}, {"name": "Сир сушений snEco «Прімаджіо» 28 г", "stock": 2077, "reserve": 95, "available": 1982, "sum": 0}, {"name": "Гофроящик Opt 250*145*110", "stock": 1998, "reserve": 0, "available": 1998, "sum": 0}, {"name": "Стікер \"Сулугуні+Арахіс\" 20 г", "stock": 1900, "reserve": 0, "available": 1900, "sum": 0}, {"name": "Сир сушений snEco \"Чеддер\", 28г", "stock": 1897, "reserve": 285, "available": 1612, "sum": 0}, {"name": "Сир сушений snEco \"Гауда\", 28г", "stock": 1837, "reserve": 130, "available": 1707, "sum": 0}, {"name": "Маркетинг", "stock": 1808, "reserve": 0, "available": 1808, "sum": 0}, {"name": "Стікер \"Прімаджіо+Волоський\" 20 г", "stock": 1741, "reserve": 0, "available": 1741, "sum": 0}], "summary": {"total_inc": 109054054, "total_exp": 108776066, "total_ret": 581254, "total_dem": 112098802, "total_orders": 21510, "median_pay": 2247, "max_pay": 741597, "return_rate": 0.52}};
+const Y='#FEBF27',G='#96C11F',R='#E84040',B='#3B82F6',DK='#1E1E1E';
+const YF='rgba(254,191,39,.13)',GF='rgba(150,193,31,.12)',RF='rgba(232,64,64,.10)',BF='rgba(59,130,246,.08)';
+const MN=['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'];
+
+Chart.defaults.font.family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
+Chart.defaults.font.size=11.5;
+Chart.defaults.color='#999';
+
+let charts={};
+let filters={year:'all',q:'all'};
+let visible={income:true,expenses:true,shipments:true,returns:true};
+
+function fmt(v,dec=0){return (v/1000000).toFixed(dec>0?dec:1)+'М';}
+function fmtK(v){if(v>=1e6)return (v/1e6).toFixed(1)+'М';if(v>=1e3)return (v/1e3).toFixed(0)+'К';return v;}
+function fmtN(v){return Math.round(v).toLocaleString('uk-UA');}
+function pct(v,dec=1){return (v||0).toFixed(dec)+'%';}
+function sum(arr,key){return arr.reduce((a,r)=>a+(Number(r[key])||0),0);}
+function avg(arr,key){return arr.length?sum(arr,key)/arr.length:0;}
+function getPrevRange(data){
+  if(!data.length) return [];
+  const idxs=data.map(r=>D.monthly.findIndex(m=>m.ym===r.ym)).filter(i=>i>=0);
+  const start=Math.min(...idxs), end=Math.max(...idxs), len=end-start+1;
+  const prevStart=Math.max(0,start-len), prevEnd=start;
+  return D.monthly.slice(prevStart,prevEnd);
+}
+function deltaPct(curr,prev){
+  if(!prev) return null;
+  return ((curr-prev)/prev)*100;
+}
+function trendPill(delta,suffix=''){
+  if(delta===null||!isFinite(delta)) return '<span class="pill pill-neu">без бази</span>';
+  const cls=delta>0?'pill-up':delta<0?'pill-dn':'pill-neu';
+  const arrow=delta>0?'↑':delta<0?'↓':'→';
+  return `<span class="pill ${cls}">${arrow} ${Math.abs(delta).toFixed(1)}${suffix}</span>`;
+}
+
+// ── Filters ───────────────────────────────────────────────
+function getFiltered(){
+  return D.monthly.filter(r=>{
+    if(filters.year!=='all'&&r.year!==filters.year)return false;
+    if(filters.q!=='all'){
+      const qn='Q'+Math.ceil(r.month/3);
+      if(qn!==filters.q)return false;
+    }
+    return true;
+  });
+}
+
+function setFilter(type,val,btn){
+  filters[type]=val;
+  const group=btn.closest('.filterbar').querySelectorAll('.fbtn');
+  btn.closest('.filterbar').querySelectorAll('[onclick*="setFilter(\''+type+'"]').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  rebuildAll();
+}
+
+function toggleMetric(metric,btn){
+  visible[metric]=!visible[metric];
+  const classes={'income':'on-y','expenses':'on-r','shipments':'on-g','returns':'on-b'};
+  btn.classList.toggle(classes[metric],visible[metric]);
+  rebuildAll();
+}
+
+function rebuildAll(){
+  buildFilteredKpis();
+  buildAlerts();
+  buildMainChart();
+  buildCashflow();
+  buildReturns();
+  buildAvgOrder();
+  buildOrders();
+}
+
+// ── Chart helpers ──────────────────────────────────────────
+function mkChart(id,cfg){
+  if(charts[id])charts[id].destroy();
+  charts[id]=new Chart(document.getElementById(id),cfg);
+  return charts[id];
+}
+
+const baseOpts={
+  responsive:true,maintainAspectRatio:false,
+  interaction:{mode:'index',intersect:false},
+  plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtK(ctx.raw)} тис. грн`}}},
+  scales:{
+    x:{grid:{display:false},ticks:{maxRotation:45,maxTicksLimit:20}},
+    y:{grid:{color:'#F0F0E8'},ticks:{callback:v=>fmtK(v)}}
+  }
+};
+
+// ── MAIN CHART ─────────────────────────────────────────────
+function buildMainChart(){
+  const data=getFiltered();
+  const lbl=data.map(r=>r.ym);
+  const datasets=[];
+  if(visible.income)    datasets.push({label:'Доходи',    data:data.map(r=>Math.round(r.income/1000)),    backgroundColor:YF,borderColor:Y,borderWidth:2.5,fill:true,tension:.4,type:'line',order:1,pointRadius:0,pointHoverRadius:4});
+  if(visible.expenses)  datasets.push({label:'Витрати',   data:data.map(r=>Math.round(r.expenses/1000)),  backgroundColor:RF,borderColor:R,borderWidth:2,fill:false,tension:.4,type:'line',order:2,pointRadius:0,pointHoverRadius:4});
+  if(visible.shipments) datasets.push({label:'Відвантаження',data:data.map(r=>Math.round(r.shipments/1000)),backgroundColor:Y,borderRadius:3,order:3,type:'bar'});
+  if(visible.returns)   datasets.push({label:'Повернення', data:data.map(r=>Math.round(r.returns/1000)),  backgroundColor:B,borderRadius:3,order:4,type:'bar'});
+  mkChart('mainChart',{type:'bar',data:{labels:lbl,datasets},options:{...JSON.parse(JSON.stringify(baseOpts)),plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtK(ctx.raw)} тис.`}}}}});
+}
+
+// ── CASHFLOW ───────────────────────────────────────────────
+function buildCashflow(){
+  const data=getFiltered();
+  const lbl=data.map(r=>r.ym);
+  const vals=data.map(r=>Math.round(r.net/1000));
+  const colors=vals.map(v=>v>=0?'rgba(150,193,31,.7)':'rgba(232,64,64,.65)');
+  mkChart('cashflowChart',{type:'bar',data:{labels:lbl,datasets:[{label:'Net Cash Flow',data:vals,backgroundColor:colors,borderRadius:3}]},options:{...JSON.parse(JSON.stringify(baseOpts)),plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` Cash Flow: ${fmtK(ctx.raw)} тис. грн`}}}}});
+}
+
+// ── RETURNS ────────────────────────────────────────────────
+function buildReturns(){
+  const data=getFiltered();
+  const lbl=data.map(r=>r.ym);
+  const vals=data.map(r=>Math.round(r.returns/1000));
+  mkChart('returnsChart',{type:'bar',data:{labels:lbl,datasets:[{label:'Повернення',data:vals,backgroundColor:BF,borderColor:B,borderWidth:1.5,borderRadius:3}]},options:{...JSON.parse(JSON.stringify(baseOpts)),plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` Повернення: ${fmtK(ctx.raw)} тис. грн`}}}}});
+}
+
+// ── AVG ORDER ──────────────────────────────────────────────
+function buildAvgOrder(){
+  const data=getFiltered().filter(r=>r.avg_order>0);
+  const lbl=data.map(r=>r.ym);
+  const vals=data.map(r=>r.avg_order);
+  mkChart('avgOrderChart',{type:'line',data:{labels:lbl,datasets:[{label:'Середній чек',data:vals,borderColor:Y,backgroundColor:YF,borderWidth:2.5,fill:true,tension:.4,pointRadius:0,pointHoverRadius:5}]},options:{...JSON.parse(JSON.stringify(baseOpts)),scales:{x:{grid:{display:false},ticks:{maxRotation:45,maxTicksLimit:20}},y:{grid:{color:'#F0F0E8'},ticks:{callback:v=>fmtK(v)+' грн'}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` Середній чек: ${Math.round(ctx.raw).toLocaleString('uk-UA')} грн`}}}}});
+}
+
+// ── ORDERS ─────────────────────────────────────────────────
+function buildOrders(){
+  const data=getFiltered().filter(r=>r.orders>0);
+  const lbl=data.map(r=>r.ym);
+  const vals=data.map(r=>r.orders);
+  mkChart('ordersChart',{type:'bar',data:{labels:lbl,datasets:[{label:'Замовлень',data:vals,backgroundColor:GF,borderColor:G,borderWidth:1.5,borderRadius:3}]},options:{...JSON.parse(JSON.stringify(baseOpts)),scales:{x:{grid:{display:false},ticks:{maxRotation:45,maxTicksLimit:20}},y:{grid:{color:'#F0F0E8'}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` Замовлень: ${ctx.raw}`}}}}});
+}
+
+// ── QUARTERLY ──────────────────────────────────────────────
+function buildQuarter(){
+  const qs=D.quarterly.slice(-12);
+  const lbl=qs.map(r=>r.q);
+  mkChart('quarterChart',{type:'bar',data:{labels:lbl,datasets:[
+    {label:'Доходи',data:qs.map(r=>Math.round(r.income/1000)),backgroundColor:Y,borderRadius:5,stack:'a'},
+    {label:'Витрати',data:qs.map(r=>Math.round(r.expenses/1000)),backgroundColor:RF,borderColor:R,borderWidth:1,borderRadius:5,stack:'b'}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:11}}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtK(ctx.raw)} тис. грн`}}},scales:{x:{grid:{display:false},ticks:{maxRotation:45}},y:{grid:{color:'#F0F0E8'},ticks:{callback:v=>fmtK(v)}}}}  });
+}
+
+// ── ANNUAL ─────────────────────────────────────────────────
+function buildAnnual(){
+  const rows=D.annual.filter(r=>!r.partial||r.year===2026);
+  const lbl=rows.map(r=>r.year+(r.partial?' (Q1)':''));
+  mkChart('annualChart',{type:'bar',data:{labels:lbl,datasets:[
+    {label:'Доходи',data:rows.map(r=>Math.round(r.income/1000000*10)/10),backgroundColor:Y,borderRadius:6},
+    {label:'Витрати',data:rows.map(r=>Math.round(r.expenses/1000000*10)/10),backgroundColor:RF,borderColor:R,borderWidth:1.5,borderRadius:6},
+    {label:'Відвантаження',data:rows.map(r=>Math.round(r.shipments/1000000*10)/10),backgroundColor:GF,borderColor:G,borderWidth:1.5,borderRadius:6},
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:11}}},tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.raw}М грн`}}},scales:{x:{grid:{display:false}},y:{grid:{color:'#F0F0E8'},ticks:{callback:v=>v+'М'}}}  }});
+}
+
+
+// ── SEASONALITY ────────────────────────────────────────────
+function buildSeason() {
+  const s = D.seasonality;
+  mkChart('seasonChart', {
+    type: 'radar',
+    data: {
+      labels: MN,
+      datasets: [
+        {
+          label: 'Доходи',
+          data: s.map(r => Math.round(r.avg_income / 1000)),
+          borderColor: Y,
+          backgroundColor: YF,
+          borderWidth: 2,
+          pointBackgroundColor: Y,
+          pointRadius: 3
+        },
+        {
+          label: 'Відвантаження',
+          data: s.map(r => Math.round(r.avg_shipments / 1000)),
+          borderColor: G,
+          backgroundColor: GF,
+          borderWidth: 2,
+          pointBackgroundColor: G,
+          pointRadius: 3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: {
+            usePointStyle: true,
+            pointStyle: 'circle',
+            font: { size: 11 }
+          }
+        }
+      },
+      scales: {
+        r: {
+          grid: { color: '#EEEEEE' },
+          ticks: {
+            display: false,
+            backdropColor: 'transparent'
+          },
+          pointLabels: {
+            font: { size: 12, weight: '600' }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── HIST ───────────────────────────────────────────────────
+function buildHist() {
+  const h = D.hist;
+  mkChart('histChart', {
+    type: 'bar',
+    data: {
+      labels: h.map(r => r.label),
+      datasets: [
+        {
+          label: 'Платежів',
+          data: h.map(r => r.count),
+          backgroundColor: [
+            YF,
+            YF,
+            'rgba(254,191,39,.3)',
+            'rgba(254,191,39,.5)',
+            Y,
+            Y,
+            'rgba(150,193,31,.5)',
+            G
+          ],
+          borderRadius: 5
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.raw} платежів`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10 } }
+        },
+        y: {
+          grid: { color: '#F0F0E8' }
+        }
+      }
+    }
+  });
+}
+
+
+// ── FILTERED KPIS ─────────────────────────────────────────
+function buildFilteredKpis(){
+  const container=document.getElementById('filteredKpis');
+  const data=getFiltered();
+  const prev=getPrevRange(data);
+  const income=sum(data,'income');
+  const expenses=sum(data,'expenses');
+  const gp=income-expenses;
+  const margin=income?gp/income*100:0;
+  const orders=sum(data,'orders');
+  const avgOrder=orders?sum(data,'shipments')/orders:0;
+  const returns=sum(data,'returns');
+  const returnRate=income?returns/income*100:0;
+
+  const prevIncome=sum(prev,'income');
+  const prevGp=prevIncome-sum(prev,'expenses');
+  const prevMargin=prevIncome?prevGp/prevIncome*100:0;
+  const prevAvgOrder=sum(prev,'orders')?sum(prev,'shipments')/sum(prev,'orders'):0;
+  const prevReturnRate=prevIncome?sum(prev,'returns')/prevIncome*100:0;
+
+  const cards=[
+    {
+      cls:'dark cy',
+      label:'Виручка у вибраному зрізі',
+      value:`${(income/1e6).toFixed(1)}<span class="kpi-unit">М грн</span>`,
+      foot:trendPill(deltaPct(income,prevIncome),'%'),
+      sub:'проти попереднього аналогічного відрізку'
+    },
+    {
+      cls:gp>=0?'cg':'cr',
+      label:'Валовий cash результат',
+      value:`${gp>=0?'':'-'}${(Math.abs(gp)/1e6).toFixed(1)}<span class="kpi-unit">М грн</span>`,
+      foot:trendPill(deltaPct(gp,prevGp),'%'),
+      sub:'доходи мінус витрати'
+    },
+    {
+      cls:'cy',
+      label:'Маржинальність',
+      value:`${margin.toFixed(1)}<span class="kpi-unit">%</span>`,
+      foot:trendPill(margin-prevMargin,' п.п.'),
+      sub:'по вибраному періоду'
+    },
+    {
+      cls:'cg',
+      label:'Середній чек',
+      value:`${fmtN(avgOrder)}<span class="kpi-unit"> грн</span>`,
+      foot:trendPill(deltaPct(avgOrder,prevAvgOrder),'%'),
+      sub:`${fmtN(orders)} замовлень`
+    },
+    {
+      cls:returnRate<=1?'cy':'cb',
+      label:'Частка повернень',
+      value:`${returnRate.toFixed(2)}<span class="kpi-unit">%</span>`,
+      foot:trendPill(returnRate-prevReturnRate,' п.п.'),
+      sub:`${fmtK(returns)} грн повернень`
+    }
+  ];
+
+  container.innerHTML=cards.map(c=>`
+    <div class="kpi ${c.cls}">
+      <div class="kpi-lbl">${c.label}</div>
+      <div class="kpi-val">${c.value}</div>
+      <div class="kpi-foot">${c.foot}</div>
+      <div class="kpi-sub" style="margin-top:6px">${c.sub}</div>
+    </div>
+  `).join('');
+}
+
+// ── ALERTS ────────────────────────────────────────────────
+function buildAlerts(){
+  const container=document.getElementById('alertsRow');
+  const data=getFiltered();
+  if(!data.length){
+    container.innerHTML='';
+    return;
+  }
+  const bestIncome=data.reduce((a,b)=>a.income>b.income?a:b);
+  const worstNet=data.reduce((a,b)=>a.net<b.net?a:b);
+  const bestShip=data.reduce((a,b)=>a.shipments>b.shipments?a:b);
+  const avgRetRate=sum(data,'income')?sum(data,'returns')/sum(data,'income')*100:0;
+  container.innerHTML=`
+    <div class="alert"><span>💡</span><span><b>${bestIncome.ym}</b> дав найбільшу виручку: <b>${(bestIncome.income/1e6).toFixed(2)}М грн</b>. Найсильніше відвантаження — <b>${bestShip.ym}</b> на <b>${(bestShip.shipments/1e6).toFixed(2)}М грн</b>.</span></div>
+    <div class="alert-soft"><b>Найслабший cash-flow</b><div style="margin-top:5px">${worstNet.ym}: <span class="tag tr">${(worstNet.net/1e6).toFixed(2)}М грн</span></div><div class="muted">Місяць, де витрати найсильніше тиснули на результат.</div></div>
+    <div class="alert-soft"><b>Повернення під контролем</b><div style="margin-top:5px">Середній рівень: <span class="tag ${avgRetRate<=1?'tg':'tr'}">${avgRetRate.toFixed(2)}%</span></div><div class="muted">Орієнтир: чим ближче до нуля, тим чистіший продаж.</div></div>
+  `;
+}
+
+// ── ANNUAL KPIS ────────────────────────────────────────────
+function buildAnnualKpis(){
+  const container=document.getElementById('annualKpis');
+  container.innerHTML='';
+  D.annual.forEach(a=>{
+    const div=document.createElement('div');
+    div.className='kpi cy';
+    const yoy=a.yoy!=null?`<span class="pill ${a.yoy>0?'pill-up':'pill-dn'}">${a.yoy>0?'↑':'↓'} ${Math.abs(a.yoy)}% YoY</span>`:'<span class="kpi-sub">Базовий рік</span>';
+    const partial=a.partial?' <span style="font-size:10px;color:var(--muted)">(Q1)</span>':'';
+    div.innerHTML=`
+      <div class="kpi-lbl">${a.year}${partial}</div>
+      <div class="kpi-val">${(a.income/1e6).toFixed(1)}<span class="kpi-unit">М грн</span></div>
+      <div class="kpi-foot">${yoy}</div>
+      <div class="kpi-sub" style="margin-top:6px">Замовлень: ${a.orders.toLocaleString('uk-UA')} · Сер.чек: ${fmtK(a.avg_order)} грн</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// ── STOCK TABLE ────────────────────────────────────────────
+function buildStock(){
+  const tbody=document.getElementById('stockBody');
+  const maxS=D.stock[0]?.stock||1;
+  tbody.innerHTML=D.stock.map((s,i)=>`
+    <tr>
+      <td class="rank">${i+1}</td>
+      <td><strong>${s.name}</strong></td>
+      <td><strong>${fmtN(s.stock)}</strong></td>
+      <td style="color:var(--muted)">${fmtN(s.reserve)}</td>
+      <td><span class="tag tg">${fmtN(s.available)}</span></td>
+      <td style="min-width:120px">
+        <div class="bar-wrap"><div class="bar-fill g" style="width:${Math.round(s.stock/maxS*100)}%"></div></div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ── ANNUAL TABLE ────────────────────────────────────────────
+function buildAnnualTable(){
+  const tbody=document.getElementById('annualTableBody');
+  tbody.innerHTML=D.annual.map(a=>{
+    const cf=a.income-a.expenses;
+    const cfClass=cf>=0?'tg':'tr';
+    const yoyHtml=a.yoy!=null?`<span class="tag ${a.yoy>0?'tg':'tr'}">${a.yoy>0?'↑':'↓'} ${Math.abs(a.yoy)}%</span>`:'—';
+    return `<tr>
+      <td><strong>${a.year}${a.partial?' ⚡':''}</strong></td>
+      <td><strong>${(a.income/1e6).toFixed(2)}М</strong></td>
+      <td>${(a.expenses/1e6).toFixed(2)}М</td>
+      <td><span class="tag ${cfClass}">${cf>=0?'+':''}${(cf/1e6).toFixed(2)}М</span></td>
+      <td>${(a.shipments/1e6).toFixed(2)}М</td>
+      <td>${a.orders.toLocaleString('uk-UA')}</td>
+      <td>${a.avg_order.toLocaleString('uk-UA')}грн</td>
+      <td><span class="tag tr">${(a.returns/1000).toFixed(1)}К</span></td>
+      <td>${yoyHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── SEARCH TABLE ────────────────────────────────────────────
+function filterTable(tbodyId,query){
+  const q=query.toLowerCase();
+  document.getElementById(tbodyId).querySelectorAll('tr').forEach(row=>{
+    row.style.display=row.textContent.toLowerCase().includes(q)?'':'none';
+  });
+}
+
+// ── INIT ────────────────────────────────────────────────────
+buildFilteredKpis();
+buildAlerts();
+buildAnnualKpis();
+buildMainChart();
+buildCashflow();
+buildQuarter();
+buildAnnual();
+buildSeason();
+buildHist();
+buildReturns();
+buildAvgOrder();
+buildOrders();
+buildStock();
+buildAnnualTable();
+
+// Update badge
+const now=new Date();
+document.getElementById('lastUpdate').textContent=now.toLocaleDateString('uk-UA',{day:'2-digit',month:'2-digit',year:'numeric'});
+</script>
+</body>
+</html>
