@@ -1,0 +1,18 @@
+# Секрети — ніколи не в репо!
+.env
+*.env
+
+# Дані МойСклад — великі файли, не в репо
+data/
+
+# Логи
+logs/
+
+# Mac системні файли
+.DS_Store
+__pycache__/
+*.pyc
+
+# Python virtual env
+venv/
+.venv/

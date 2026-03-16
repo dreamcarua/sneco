@@ -474,13 +474,230 @@ def main():
     rows = fetch_report("report/profit/bycounterparty")
     save_excel(pd.DataFrame(parse_profit_report(rows, "Контрагент")), "report_profit_by_counterparty", reliable=False)
 
-    # ── Підсумок ──────────────────────────────────────────
+    # ── Генерація дашборду ────────────────────────────────
+    print("\n🎨 Генерую dashboard.html...")
+    try:
+        generate_dashboard()
+        print("  ✅ dashboard.html оновлено")
+    except Exception as e:
+        print(f"  ⚠️  Помилка генерації дашборду: {e}")
 
+    # ── Git auto-push ─────────────────────────────────────
+    git_push()
+
+    # ── Підсумок ──────────────────────────────────────────
     print(f"\n{'='*55}")
     print(f"  ✅ Синхронізацію завершено!")
     print(f"  📁 Файли збережено в: snEco/data/")
+    print(f"  🌐 GitHub: https://github.com/dreamcarua/sneco")
     print(f"\n  Час: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
     print(f"{'='*55}\n")
+
+
+# ── Dashboard generator ───────────────────────────────────────────────────────
+
+def generate_dashboard():
+    """Генерує dashboard.html з актуальних даних."""
+    import re as _re
+
+    pay_path  = OUTPUT_DIR / "payments.xlsx"
+    dem_path  = OUTPUT_DIR / "demands.xlsx"
+    stk_path  = OUTPUT_DIR / "stock.xlsx"
+
+    if not pay_path.exists() or not dem_path.exists():
+        raise FileNotFoundError("Файли payments.xlsx або demands.xlsx не знайдено")
+
+    pay = pd.read_excel(pay_path)
+    dem = pd.read_excel(dem_path)
+    stk = pd.read_excel(stk_path) if stk_path.exists() else pd.DataFrame()
+
+    for df in [pay, dem]:
+        df['Дата'] = pd.to_datetime(df['Дата'], errors='coerce')
+        df['YM']   = df['Дата'].dt.strftime('%Y-%m')
+        df['Рік']  = df['Дата'].dt.year
+        df['М']    = df['Дата'].dt.month
+        df['Q']    = df['Дата'].dt.to_period('Q').astype(str)
+
+    inc = pay[pay['Тип'] == 'Вхідний'].copy()
+    out = pay[pay['Тип'] == 'Вихідний'].copy()
+    ret = out[out['Призначення'].str.contains('Возврат', na=False)].copy()
+    exp = out[~out['Призначення'].str.contains('Возврат', na=False)].copy()
+
+    def gs(s, k, d=0):
+        try: return round(float(s.get(k, d)))
+        except: return d
+
+    inc_m = inc.groupby('YM')['Сума, грн'].sum()
+    out_m = out.groupby('YM')['Сума, грн'].sum()
+    ret_m = ret.groupby('YM')['Сума, грн'].sum()
+    exp_m = exp.groupby('YM')['Сума, грн'].sum()
+    dem_m = dem.groupby('YM')['Сума, грн'].sum()
+    cnt_m = dem.groupby('YM')['id'].count()
+    avg_m = dem.groupby('YM')['Сума, грн'].mean()
+
+    all_ym = sorted(set(inc['YM'].dropna()) | set(dem['YM'].dropna()))
+    monthly = []
+    for ym in all_ym:
+        i = gs(inc_m, ym)
+        monthly.append({'ym': ym, 'year': ym[:4], 'month': int(ym[5:]),
+            'income': i, 'outgoing': gs(out_m, ym), 'returns': gs(ret_m, ym),
+            'expenses': gs(exp_m, ym), 'net': i - gs(out_m, ym),
+            'shipments': gs(dem_m, ym), 'orders': int(gs(cnt_m, ym)),
+            'avg_order': round(float(avg_m.get(ym, 0))),
+        })
+
+    annual = []
+    for y in [2023, 2024, 2025, 2026]:
+        yi = round(inc[inc['Рік']==y]['Сума, грн'].sum())
+        yo = round(exp[exp['Рік']==y]['Сума, грн'].sum())
+        yr = round(ret[ret['Рік']==y]['Сума, грн'].sum())
+        yd = round(dem[dem['Рік']==y]['Сума, грн'].sum())
+        yc = int(dem[dem['Рік']==y]['id'].count())
+        ya = round(float(dem[dem['Рік']==y]['Сума, грн'].mean())) if yc else 0
+        prev = next((a['income'] for a in annual if a['year'] == y-1), None)
+        yoy = round((yi-prev)/prev*100, 1) if prev and prev > 0 else None
+        annual.append({'year': y, 'income': yi, 'expenses': yo, 'returns': yr,
+            'shipments': yd, 'orders': yc, 'avg_order': ya, 'yoy': yoy, 'partial': y == 2026})
+
+    all_q = sorted(set(inc['Q'].dropna()) | set(dem['Q'].dropna()))
+    inc_q = inc.groupby('Q')['Сума, грн'].sum()
+    exp_q = exp.groupby('Q')['Сума, грн'].sum()
+    ret_q = ret.groupby('Q')['Сума, грн'].sum()
+    dem_q = dem.groupby('Q')['Сума, грн'].sum()
+    cnt_q = dem.groupby('Q')['id'].count()
+    quarterly = [{'q': q, 'income': gs(inc_q, q), 'expenses': gs(exp_q, q),
+        'returns': gs(ret_q, q), 'shipments': gs(dem_q, q), 'orders': int(gs(cnt_q, q))}
+        for q in all_q]
+
+    inc35 = inc[inc['Рік'].isin([2023, 2024, 2025])]
+    dem35 = dem[dem['Рік'].isin([2023, 2024, 2025])]
+    seasonality = [{'month': m,
+        'avg_income': round(float(inc35[inc35['М']==m]['Сума, грн'].mean() or 0)),
+        'avg_shipments': round(float(dem35[dem35['М']==m]['Сума, грн'].mean() or 0))}
+        for m in range(1, 13)]
+
+    buckets = [0, 500, 1000, 2000, 5000, 10000, 25000, 50000, 1e9]
+    labels_b = ['0–500', '500–1К', '1К–2К', '2К–5К', '5К–10К', '10К–25К', '25К–50К', '50К+']
+    hist = [{'label': labels_b[i],
+        'count': int(((inc['Сума, грн'] >= buckets[i]) & (inc['Сума, грн'] < buckets[i+1])).sum())}
+        for i in range(len(buckets)-1)]
+
+    stock_data = []
+    if not stk.empty:
+        for _, r in stk[stk['Залишок'] > 0].sort_values('Залишок', ascending=False).head(25).iterrows():
+            stock_data.append({'name': r['Товар'], 'stock': round(r['Залишок']),
+                'reserve': round(r['Резерв']), 'available': round(r['Доступно']),
+                'sum': round(r['Сума, грн'])})
+
+    # Counterparty names if available
+    cp_path = OUTPUT_DIR / "counterparties.xlsx"
+    top_clients = []
+    if cp_path.exists():
+        cp = pd.read_excel(cp_path)
+        cp_map = cp.set_index('id')['Назва'].to_dict()
+        def extract_uuid(val):
+            import re
+            m = re.search(r'counterparty/([a-f0-9\-]{36})', str(val))
+            return m.group(1) if m else None
+        inc2 = inc.copy()
+        inc2['cp_id'] = inc2['Контрагент'].apply(extract_uuid) if inc2['Контрагент'].dtype == object else inc2['Контрагент'].astype(str)
+        inc2['cp_name'] = inc2['cp_id'].map(cp_map).fillna('Невідомий')
+        top = inc2.groupby('cp_name').agg(sum=('Сума, грн', 'sum'), count=('Сума, грн', 'count')).sort_values('sum', ascending=False).head(20).reset_index()
+        top_clients = top.rename(columns={'cp_name': 'name'}).to_dict('records')
+    else:
+        def extract_uuid(val):
+            import re
+            m = re.search(r'counterparty/([a-f0-9\-]{36})', str(val))
+            return m.group(1) if m else None
+        inc2 = inc.copy()
+        inc2['cp_id'] = inc2['Контрагент'].apply(extract_uuid) if inc2['Контрагент'].dtype == object else inc2['Контрагент'].astype(str)
+        top = inc2.groupby('cp_id').agg(sum=('Сума, грн', 'sum'), count=('Сума, грн', 'count')).sort_values('sum', ascending=False).head(20).reset_index()
+        top['name'] = [f'Клієнт #{i+1}' for i in range(len(top))]
+        top_clients = top[['name', 'sum', 'count']].to_dict('records')
+
+    data = {
+        'monthly': monthly, 'annual': annual, 'quarterly': quarterly,
+        'seasonality': seasonality, 'hist': hist, 'stock': stock_data,
+        'top_clients': top_clients,
+        'generated': datetime.now().strftime('%d.%m.%Y %H:%M'),
+        'summary': {
+            'total_inc': round(inc['Сума, грн'].sum()),
+            'total_exp': round(exp['Сума, грн'].sum()),
+            'total_ret': round(ret['Сума, грн'].sum()),
+            'total_dem': round(dem['Сума, грн'].sum()),
+            'total_orders': int(len(dem)),
+            'median_pay': round(float(inc['Сума, грн'].median())),
+            'return_rate': round(round(ret['Сума, грн'].sum()) / max(round(dem['Сума, грн'].sum()), 1) * 100, 2),
+        }
+    }
+
+    # Read template or use inline
+    tpl_path = Path(__file__).parent / "dashboard_template.html"
+    if tpl_path.exists():
+        tpl = tpl_path.read_text(encoding='utf-8')
+        html = tpl.replace('/*DATA_PLACEHOLDER*/', json.dumps(data, ensure_ascii=False, default=str))
+    else:
+        # Embed data directly into existing dashboard
+        dash_path = Path(__file__).parent / "dashboard.html"
+        if dash_path.exists():
+            html = dash_path.read_text(encoding='utf-8')
+            html = _re.sub(
+                r'const D = \{.*?\};',
+                f'const D = {json.dumps(data, ensure_ascii=False, default=str)};',
+                html, flags=_re.DOTALL
+            )
+        else:
+            raise FileNotFoundError("dashboard.html не знайдено. Запусти sync вперше вручну.")
+
+    out_path = Path(__file__).parent / "dashboard.html"
+    out_path.write_text(html, encoding='utf-8')
+
+
+# ── Git auto-push ─────────────────────────────────────────────────────────────
+
+def git_push():
+    """Комітить оновлені файли і пушить у GitHub."""
+    import subprocess
+    repo_dir = str(Path(__file__).parent)
+
+    def run(cmd):
+        result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True)
+        return result.returncode, result.stdout.strip(), result.stderr.strip()
+
+    print("\n🔄 Git push...")
+
+    # Перевіряємо чи є git репо
+    code, _, _ = run(['git', 'status'])
+    if code != 0:
+        print("  ⚠️  Git репо не ініціалізовано. Пропускаю.")
+        print("  💡 Щоб налаштувати: відкрий GitHub Desktop і клонуй dreamcarua/sneco")
+        return
+
+    # Додаємо файли
+    run(['git', 'add', 'dashboard.html'])
+    run(['git', 'add', 'moysklad_sync.py', 'setup_schedule_mac.sh'])
+
+    # Перевіряємо чи є що комітити
+    code, out, _ = run(['git', 'status', '--porcelain'])
+    if not out:
+        print("  ℹ️  Змін немає — push не потрібен")
+        return
+
+    # Коміт
+    msg = f"Auto-sync {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+    code, out, err = run(['git', 'commit', '-m', msg])
+    if code != 0:
+        print(f"  ⚠️  Commit failed: {err}")
+        return
+    print(f"  ✅ Commit: {msg}")
+
+    # Push
+    code, out, err = run(['git', 'push'])
+    if code != 0:
+        print(f"  ⚠️  Push failed: {err[:200]}")
+        print("  💡 Перевір налаштування GitHub Desktop або запусти push вручну")
+    else:
+        print(f"  ✅ Запушено → github.com/dreamcarua/sneco")
 
 
 if __name__ == "__main__":
