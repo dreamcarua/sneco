@@ -110,6 +110,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* ─── ALERT ─── */
 .alert{background:rgba(254,191,39,.08);border:1px solid rgba(254,191,39,.3);border-radius:8px;padding:10px 14px;font-size:12px;color:#806000;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.alerts{display:grid;grid-template-columns:1.2fr .9fr .9fr;gap:10px}
+.alert-soft{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.alert-soft b{color:var(--d)}
+.alert-soft .muted{color:var(--muted);font-size:11px;margin-top:4px}
+@media(max-width:960px){.alerts{grid-template-columns:1fr}}
+
+/* ─── PERIOD COMPARE ─── */
+.compare-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-top:12px}
+.compare-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.compare-title{font-size:13px;font-weight:700;color:var(--d)}
+.compare-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.compare-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.compare-item{background:#FAFAF5;border:1px solid var(--border);border-radius:10px;padding:12px}
+.compare-item .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.55px;color:var(--muted);margin-bottom:5px}
+.compare-item .val{font-size:18px;font-weight:800;color:var(--d)}
+.compare-item .sub{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.35}
+.compare-item .delta{margin-top:8px}
+@media(max-width:960px){.compare-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.compare-grid{grid-template-columns:1fr}}
 
 /* ─── FOOTER ─── */
 .footer{text-align:center;padding:20px;color:var(--muted);font-size:11px;border-top:1px solid var(--border);margin-top:20px}
@@ -160,22 +179,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <!-- KPIs -->
 <div class="sec">Ключові показники</div>
 <div class="g1">
-  <div class="kpi dark cy">
+  <div class="kpi dark cy clickable" id="sumIncomeCard" onclick="toggleMetricFromSummary('income')">
     <div class="kpi-lbl">Загальна виручка</div>
     <div class="kpi-val">109<span class="kpi-unit">.1М грн</span></div>
     <div class="kpi-foot"><span class="kpi-sub">Оплати 2023–2026 ✅</span></div>
   </div>
-  <div class="kpi cy">
+  <div class="kpi cy clickable" id="sumExpensesCard" onclick="toggleMetricFromSummary('expenses')">
     <div class="kpi-lbl">Витрати (вих. оплати)</div>
     <div class="kpi-val">108<span class="kpi-unit">.8М грн</span></div>
     <div class="kpi-foot"><span class="pill pill-neu">~99.7% від виручки</span></div>
   </div>
-  <div class="kpi cg">
+  <div class="kpi cg clickable" id="sumShipmentsCard" onclick="toggleMetricFromSummary('shipments')">
     <div class="kpi-lbl">Відвантаження</div>
     <div class="kpi-val">112<span class="kpi-unit">.1М грн</span></div>
     <div class="kpi-foot"><span class="kpi-sub">✅ Точні дані</span></div>
   </div>
-  <div class="kpi cy">
+  <div class="kpi cy clickable" id="sumReturnsCard" onclick="toggleMetricFromSummary('returns')">
     <div class="kpi-lbl">Повернення</div>
     <div class="kpi-val">581<span class="kpi-unit">К грн</span></div>
     <div class="kpi-foot"><span class="pill pill-up">✓ Лише 0.52%</span></div>
@@ -191,6 +210,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="kpi-foot"><span class="kpi-sub">Середнє: 7 322 грн</span></div>
   </div>
 </div>
+<div class="kpi-hint">Натисни на картки «Загальна виручка», «Витрати», «Відвантаження» або «Повернення», щоб показати чи сховати відповідну серію на головному графіку.</div>
+
+<!-- FILTERED SUMMARY -->
+<div class="sec">Поточний зріз</div>
+<div class="g1" id="filteredKpis"></div>
+<div class="alerts" id="alertsRow" style="margin-top:12px"></div>
+<div id="periodCompare"></div>
 
 <!-- ANNUAL KPIs -->
 <div class="sec">По роках</div>
@@ -302,6 +328,45 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+
+<!-- SALES FOCUS -->
+<div class="sec">Продажні акценти</div>
+<div class="alert" style="margin-bottom:14px"><span>ℹ️</span><span>У цьому файлі немає деталізації по клієнтах, тому нижче показані <b>топ місяці за виручкою</b> і <b>ключові SKU за наявним запасом</b> — без вигаданих клієнтських даних.</span></div>
+<div class="g2">
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Топ місяці за виручкою</div>
+        <div class="cc-sub">Частка кожного місяця у вибраному періоді</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="dt">
+        <thead><tr>
+          <th>#</th><th>Місяць</th><th>Виручка</th><th>Замовлень</th><th>Частка</th>
+        </tr></thead>
+        <tbody id="topMonthsBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Ключові SKU у запасі</div>
+        <div class="cc-sub">Топ позицій за доступною кількістю на складі</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="dt">
+        <thead><tr>
+          <th>#</th><th>SKU</th><th>Доступно</th><th>Резерв</th><th>Частка</th>
+        </tr></thead>
+        <tbody id="topSkuBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- STOCK -->
 <div class="sec">Залишки на складі</div>
 <div class="cc">
@@ -362,6 +427,26 @@ let visible={income:true,expenses:true,shipments:true,returns:true};
 function fmt(v,dec=0){return (v/1000000).toFixed(dec>0?dec:1)+'М';}
 function fmtK(v){if(v>=1e6)return (v/1e6).toFixed(1)+'М';if(v>=1e3)return (v/1e3).toFixed(0)+'К';return v;}
 function fmtN(v){return Math.round(v).toLocaleString('uk-UA');}
+function pct(v,dec=1){return (v||0).toFixed(dec)+'%';}
+function sum(arr,key){return arr.reduce((a,r)=>a+(Number(r[key])||0),0);}
+function avg(arr,key){return arr.length?sum(arr,key)/arr.length:0;}
+function getPrevRange(data){
+  if(!data.length) return [];
+  const idxs=data.map(r=>D.monthly.findIndex(m=>m.ym===r.ym)).filter(i=>i>=0);
+  const start=Math.min(...idxs), end=Math.max(...idxs), len=end-start+1;
+  const prevStart=Math.max(0,start-len), prevEnd=start;
+  return D.monthly.slice(prevStart,prevEnd);
+}
+function deltaPct(curr,prev){
+  if(!prev) return null;
+  return ((curr-prev)/prev)*100;
+}
+function trendPill(delta,suffix=''){
+  if(delta===null||!isFinite(delta)) return '<span class="pill pill-neu">без бази</span>';
+  const cls=delta>0?'pill-up':delta<0?'pill-dn':'pill-neu';
+  const arrow=delta>0?'↑':delta<0?'↓':'→';
+  return `<span class="pill ${cls}">${arrow} ${Math.abs(delta).toFixed(1)}${suffix}</span>`;
+}
 
 // ── Filters ───────────────────────────────────────────────
 function getFiltered(){
@@ -383,14 +468,46 @@ function setFilter(type,val,btn){
   rebuildAll();
 }
 
+function syncMetricControls(){
+  const classes={'income':'on-y','expenses':'on-r','shipments':'on-g','returns':'on-b'};
+  const buttons={
+    income:document.getElementById('togInc'),
+    expenses:document.getElementById('togExp'),
+    shipments:document.getElementById('togShip'),
+    returns:document.getElementById('togRet')
+  };
+  const cards={
+    income:document.getElementById('sumIncomeCard'),
+    expenses:document.getElementById('sumExpensesCard'),
+    shipments:document.getElementById('sumShipmentsCard'),
+    returns:document.getElementById('sumReturnsCard')
+  };
+  Object.keys(visible).forEach(metric=>{
+    if(buttons[metric]){
+      buttons[metric].classList.toggle('on',visible[metric]);
+      buttons[metric].classList.toggle(classes[metric],visible[metric]);
+    }
+    if(cards[metric]) cards[metric].classList.toggle('metric-off',!visible[metric]);
+  });
+}
+
 function toggleMetric(metric,btn){
   visible[metric]=!visible[metric];
-  const classes={'income':'on-y','expenses':'on-r','shipments':'on-g','returns':'on-b'};
-  btn.classList.toggle(classes[metric],visible[metric]);
+  syncMetricControls();
+  rebuildAll();
+}
+
+function toggleMetricFromSummary(metric){
+  visible[metric]=!visible[metric];
+  syncMetricControls();
   rebuildAll();
 }
 
 function rebuildAll(){
+  buildFilteredKpis();
+  buildAlerts();
+  buildPeriodCompare();
+  buildSalesFocus();
   buildMainChart();
   buildCashflow();
   buildReturns();
@@ -483,29 +600,275 @@ function buildAnnual(){
 
 
 // ── SEASONALITY ────────────────────────────────────────────
-function buildSeason(){
-  const s=D.seasonality;
-  mkChart('seasonChart',{type:'radar',data:{
-    labels:MN,
-    datasets:[
-      {label:'Доходи',data:s.map(r=>Math.round(r.avg_income/1000)),borderColor:Y,backgroundColor:YF,borderWidth:2,pointBackgroundColor:Y,pointRadius:3},
-      {label:'Відвантаження',data:s.map(r=>Math.round(r.avg_shipments/1000)),borderColor:G,backgroundColor:GF,borderWidth:2,pointBackgroundColor:G,pointRadius:3}
-    ]
-  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,pointStyle:'circle',font:{size:11}}}},scales:{r:{grid:{color:'#EEEEEE'},ticks:{display:false,backdropColor:'transparent'},pointLabels:{font:{size:12,weight:'600'}}}}}});
+function buildSeason() {
+  const s = D.seasonality;
+  mkChart('seasonChart', {
+    type: 'radar',
+    data: {
+      labels: MN,
+      datasets: [
+        {
+          label: 'Доходи',
+          data: s.map(r => Math.round(r.avg_income / 1000)),
+          borderColor: Y,
+          backgroundColor: YF,
+          borderWidth: 2,
+          pointBackgroundColor: Y,
+          pointRadius: 3
+        },
+        {
+          label: 'Відвантаження',
+          data: s.map(r => Math.round(r.avg_shipments / 1000)),
+          borderColor: G,
+          backgroundColor: GF,
+          borderWidth: 2,
+          pointBackgroundColor: G,
+          pointRadius: 3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: {
+            usePointStyle: true,
+            pointStyle: 'circle',
+            font: { size: 11 }
+          }
+        }
+      },
+      scales: {
+        r: {
+          grid: { color: '#EEEEEE' },
+          ticks: {
+            display: false,
+            backdropColor: 'transparent'
+          },
+          pointLabels: {
+            font: { size: 12, weight: '600' }
+          }
+        }
+      }
+    }
+  });
 }
 
 // ── HIST ───────────────────────────────────────────────────
-function buildHist(){
-  const h=D.hist;
-  mkChart('histChart',{type:'bar',data:{
-    labels:h.map(r=>r.label),
-    datasets:[{label:'Платежів',data:h.map(r=>r.count),backgroundColor:[YF,YF,'rgba(254,191,39,.3)','rgba(254,191,39,.5)',Y,Y,'rgba(150,193,31,.5)',G].map(c=>c),borderRadius:5}]
-  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw} платежів`}}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'#F0F0E8'}}}}});
+function buildHist() {
+  const h = D.hist;
+  mkChart('histChart', {
+    type: 'bar',
+    data: {
+      labels: h.map(r => r.label),
+      datasets: [
+        {
+          label: 'Платежів',
+          data: h.map(r => r.count),
+          backgroundColor: [
+            YF,
+            YF,
+            'rgba(254,191,39,.3)',
+            'rgba(254,191,39,.5)',
+            Y,
+            Y,
+            'rgba(150,193,31,.5)',
+            G
+          ],
+          borderRadius: 5
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.raw} платежів`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10 } }
+        },
+        y: {
+          grid: { color: '#F0F0E8' }
+        }
+      }
+    }
+  });
+}
+
+
+// ── FILTERED KPIS ─────────────────────────────────────────
+function buildFilteredKpis(){
+  const container=document.getElementById('filteredKpis');
+  const data=getFiltered();
+  const prev=getPrevRange(data);
+  const income=sum(data,'income');
+  const expenses=sum(data,'expenses');
+  const gp=income-expenses;
+  const margin=income?gp/income*100:0;
+  const orders=sum(data,'orders');
+  const avgOrder=orders?sum(data,'shipments')/orders:0;
+  const returns=sum(data,'returns');
+  const returnRate=income?returns/income*100:0;
+
+  const prevIncome=sum(prev,'income');
+  const prevGp=prevIncome-sum(prev,'expenses');
+  const prevMargin=prevIncome?prevGp/prevIncome*100:0;
+  const prevAvgOrder=sum(prev,'orders')?sum(prev,'shipments')/sum(prev,'orders'):0;
+  const prevReturnRate=prevIncome?sum(prev,'returns')/prevIncome*100:0;
+
+  const cards=[
+    {
+      cls:'dark cy',
+      label:'Виручка у вибраному зрізі',
+      value:`${(income/1e6).toFixed(1)}<span class="kpi-unit">М грн</span>`,
+      foot:trendPill(deltaPct(income,prevIncome),'%'),
+      sub:'проти попереднього аналогічного відрізку'
+    },
+    {
+      cls:gp>=0?'cg':'cr',
+      label:'Валовий cash результат',
+      value:`${gp>=0?'':'-'}${(Math.abs(gp)/1e6).toFixed(1)}<span class="kpi-unit">М грн</span>`,
+      foot:trendPill(deltaPct(gp,prevGp),'%'),
+      sub:'доходи мінус витрати'
+    },
+    {
+      cls:'cy',
+      label:'Маржинальність',
+      value:`${margin.toFixed(1)}<span class="kpi-unit">%</span>`,
+      foot:trendPill(margin-prevMargin,' п.п.'),
+      sub:'по вибраному періоду'
+    },
+    {
+      cls:'cg',
+      label:'Середній чек',
+      value:`${fmtN(avgOrder)}<span class="kpi-unit"> грн</span>`,
+      foot:trendPill(deltaPct(avgOrder,prevAvgOrder),'%'),
+      sub:`${fmtN(orders)} замовлень`
+    },
+    {
+      cls:returnRate<=1?'cy':'cb',
+      label:'Частка повернень',
+      value:`${returnRate.toFixed(2)}<span class="kpi-unit">%</span>`,
+      foot:trendPill(returnRate-prevReturnRate,' п.п.'),
+      sub:`${fmtK(returns)} грн повернень`
+    }
+  ];
+
+  container.innerHTML=cards.map(c=>`
+    <div class="kpi ${c.cls}">
+      <div class="kpi-lbl">${c.label}</div>
+      <div class="kpi-val">${c.value}</div>
+      <div class="kpi-foot">${c.foot}</div>
+      <div class="kpi-sub" style="margin-top:6px">${c.sub}</div>
+    </div>
+  `).join('');
+}
+
+// ── ALERTS ────────────────────────────────────────────────
+function buildAlerts(){
+  const container=document.getElementById('alertsRow');
+  const data=getFiltered();
+  if(!data.length){
+    container.innerHTML='';
+    return;
+  }
+  const bestIncome=data.reduce((a,b)=>a.income>b.income?a:b);
+  const worstNet=data.reduce((a,b)=>a.net<b.net?a:b);
+  const bestShip=data.reduce((a,b)=>a.shipments>b.shipments?a:b);
+  const avgRetRate=sum(data,'income')?sum(data,'returns')/sum(data,'income')*100:0;
+  container.innerHTML=`
+    <div class="alert"><span>💡</span><span><b>${bestIncome.ym}</b> дав найбільшу виручку: <b>${(bestIncome.income/1e6).toFixed(2)}М грн</b>. Найсильніше відвантаження — <b>${bestShip.ym}</b> на <b>${(bestShip.shipments/1e6).toFixed(2)}М грн</b>.</span></div>
+    <div class="alert-soft"><b>Найслабший cash-flow</b><div style="margin-top:5px">${worstNet.ym}: <span class="tag tr">${(worstNet.net/1e6).toFixed(2)}М грн</span></div><div class="muted">Місяць, де витрати найсильніше тиснули на результат.</div></div>
+    <div class="alert-soft"><b>Повернення під контролем</b><div style="margin-top:5px">Середній рівень: <span class="tag ${avgRetRate<=1?'tg':'tr'}">${avgRetRate.toFixed(2)}%</span></div><div class="muted">Орієнтир: чим ближче до нуля, тим чистіший продаж.</div></div>
+  `;
+}
+
+
+// ── PERIOD COMPARE ───────────────────────────────────────
+function fmtPeriodRange(data){
+  if(!data.length) return 'немає даних';
+  if(data.length===1) return data[0].ym;
+  return `${data[0].ym} → ${data[data.length-1].ym}`;
+}
+
+function buildPeriodCompare(){
+  const container=document.getElementById('periodCompare');
+  const data=getFiltered();
+  const prev=getPrevRange(data);
+  if(!data.length){
+    container.innerHTML='';
+    return;
+  }
+
+  const metrics=[
+    {
+      label:'Виручка',
+      curr:sum(data,'income'),
+      prev:sum(prev,'income'),
+      val:v=>`${(v/1e6).toFixed(2)}М грн`,
+      sub:'оплати за вибраний відрізок'
+    },
+    {
+      label:'Cash result',
+      curr:sum(data,'income')-sum(data,'expenses'),
+      prev:sum(prev,'income')-sum(prev,'expenses'),
+      val:v=>`${v>=0?'+':'-'}${(Math.abs(v)/1e6).toFixed(2)}М грн`,
+      sub:'доходи мінус витрати'
+    },
+    {
+      label:'Замовлення',
+      curr:sum(data,'orders'),
+      prev:sum(prev,'orders'),
+      val:v=>`${fmtN(v)}`,
+      sub:'відвантажень у зрізі'
+    },
+    {
+      label:'Середній чек',
+      curr:sum(data,'orders')?sum(data,'shipments')/sum(data,'orders'):0,
+      prev:sum(prev,'orders')?sum(prev,'shipments')/sum(prev,'orders'):0,
+      val:v=>`${fmtN(v)} грн`,
+      sub:'за сумою відвантаження'
+    }
+  ];
+
+  container.innerHTML=`
+    <div class="compare-box">
+      <div class="compare-head">
+        <div>
+          <div class="compare-title">Порівняння з попереднім аналогічним періодом</div>
+          <div class="compare-sub">Поточний зріз: <b>${fmtPeriodRange(data)}</b> · Попередній відрізок: <b>${fmtPeriodRange(prev)}</b></div>
+        </div>
+      </div>
+      <div class="compare-grid">
+        ${metrics.map(m=>{
+          const d=deltaPct(m.curr,m.prev);
+          return `
+            <div class="compare-item">
+              <div class="lbl">${m.label}</div>
+              <div class="val">${m.val(m.curr)}</div>
+              <div class="delta">${trendPill(d,'%')}</div>
+              <div class="sub">Було: <b>${m.val(m.prev)}</b><br>${m.sub}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
 }
 
 // ── ANNUAL KPIS ────────────────────────────────────────────
 function buildAnnualKpis(){
   const container=document.getElementById('annualKpis');
+  container.innerHTML='';
   D.annual.forEach(a=>{
     const div=document.createElement('div');
     div.className='kpi cy';
@@ -519,6 +882,51 @@ function buildAnnualKpis(){
     `;
     container.appendChild(div);
   });
+}
+
+
+// ── SALES FOCUS TABLES ─────────────────────────────────────
+function buildSalesFocus(){
+  const monthsBody=document.getElementById('topMonthsBody');
+  const skuBody=document.getElementById('topSkuBody');
+  const data=getFiltered();
+  const totalIncome=sum(data,'income')||1;
+  const topMonths=[...data].sort((a,b)=>b.income-a.income).slice(0,6);
+  monthsBody.innerHTML=topMonths.map((m,i)=>{
+    const share=m.income/totalIncome*100;
+    return `
+      <tr>
+        <td class="rank">${i+1}</td>
+        <td><strong>${m.ym}</strong></td>
+        <td><strong>${(m.income/1e6).toFixed(2)}М</strong></td>
+        <td>${fmtN(m.orders)}</td>
+        <td style="min-width:140px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="bar-wrap" style="flex:1"><div class="bar-fill" style="width:${Math.max(6,Math.round(share))}%"></div></div>
+            <span style="font-size:11px;color:var(--muted)">${share.toFixed(1)}%</span>
+          </div>
+        </td>
+      </tr>`;
+  }).join('') || `<tr><td colspan="5" style="color:var(--muted)">Немає даних для вибраного зрізу.</td></tr>`;
+
+  const maxAvail=Math.max(...D.stock.map(s=>s.available||0),1);
+  const topSku=[...D.stock].sort((a,b)=>(b.available||0)-(a.available||0)).slice(0,8);
+  skuBody.innerHTML=topSku.map((s,i)=>{
+    const share=(s.available||0)/maxAvail*100;
+    return `
+      <tr>
+        <td class="rank">${i+1}</td>
+        <td><strong>${s.name}</strong></td>
+        <td><span class="tag tg">${fmtN(s.available||0)}</span></td>
+        <td style="color:var(--muted)">${fmtN(s.reserve||0)}</td>
+        <td style="min-width:140px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="bar-wrap" style="flex:1"><div class="bar-fill g" style="width:${Math.max(6,Math.round(share))}%"></div></div>
+            <span style="font-size:11px;color:var(--muted)">${share.toFixed(0)}%</span>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
 }
 
 // ── STOCK TABLE ────────────────────────────────────────────
@@ -569,6 +977,10 @@ function filterTable(tbodyId,query){
 }
 
 // ── INIT ────────────────────────────────────────────────────
+buildFilteredKpis();
+buildAlerts();
+buildPeriodCompare();
+buildSalesFocus();
 buildAnnualKpis();
 buildMainChart();
 buildCashflow();
@@ -581,6 +993,7 @@ buildAvgOrder();
 buildOrders();
 buildStock();
 buildAnnualTable();
+syncMetricControls();
 
 // Update badge
 const now=new Date();
