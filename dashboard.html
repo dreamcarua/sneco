@@ -421,32 +421,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
-</div><!-- /tab-3 -->
-
-<!-- ══════════ TAB 4: СКЛАД & ТАБЛИЦІ ══════════ -->
-<div class="tab-content" id="tab-4">
-
-<!-- STOCK -->
-<div class="sec">Залишки на складі</div>
-<div class="cc">
-  <div class="cc-head">
-    <div>
-      <div class="cc-title">Поточні залишки — топ позиції</div>
-      <div class="cc-sub">Включає сировину, упаковку і готову продукцію</div>
-    </div>
-    <input id="stockSearch" onkeyup="filterTable('stockBody',this.value)" placeholder="🔍 Пошук..." style="padding:6px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;outline:none">
-  </div>
-  <div style="overflow-x:auto">
-    <table class="dt">
-      <thead><tr>
-        <th>#</th><th>Товар</th>
-        <th>Залишок</th><th>Резерв</th><th>Доступно</th>
-        <th>Обсяг наявності</th>
-      </tr></thead>
-      <tbody id="stockBody"></tbody>
-    </table>
-  </div>
-</div>
 
 <!-- TOP CLIENTS -->
 <div class="sec">Топ контрагентів</div>
@@ -513,6 +487,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <tbody id="productsBody"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+</div><!-- /tab-3 -->
+
+<!-- ══════════ TAB 4: СКЛАД & ТАБЛИЦІ ══════════ -->
+<div class="tab-content" id="tab-4">
+
+<!-- STOCK -->
+<div class="sec">Залишки на складі</div>
+<div class="cc">
+  <div class="cc-head">
+    <div>
+      <div class="cc-title">Поточні залишки — топ позиції</div>
+      <div class="cc-sub">Включає сировину, упаковку і готову продукцію</div>
+    </div>
+    <input id="stockSearch" onkeyup="filterTable('stockBody',this.value)" placeholder="🔍 Пошук..." style="padding:6px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;outline:none">
+  </div>
+  <div style="overflow-x:auto">
+    <table class="dt">
+      <thead><tr>
+        <th>#</th><th>Товар</th>
+        <th>Залишок</th><th>Резерв</th><th>Доступно</th>
+        <th>Обсяг наявності</th>
+      </tr></thead>
+      <tbody id="stockBody"></tbody>
+    </table>
   </div>
 </div>
 
