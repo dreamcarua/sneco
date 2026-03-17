@@ -712,6 +712,37 @@ def generate_dashboard():
             except Exception:
                 pass
 
+    # ── Якщо є річні дані — будуємо all-time top_clients/top_products з них ──
+    # (звіт за останні 30 днів не репрезентує весь час!)
+    def _aggregate_by_year(by_year: dict) -> list:
+        agg: dict = {}
+        for year_data in by_year.values():
+            for item in year_data:
+                n = item['name']
+                if n not in agg:
+                    agg[n] = {'name': n, 'revenue': 0, 'qty': 0,
+                               'margin_sum': 0.0, 'returns': 0, '_cnt': 0}
+                agg[n]['revenue']     += item.get('revenue', 0)
+                agg[n]['qty']         += item.get('qty', 0)
+                agg[n]['returns']     += item.get('returns', 0)
+                agg[n]['margin_sum']  += item.get('margin', 0.0)
+                agg[n]['_cnt']        += 1
+        result = []
+        for item in sorted(agg.values(), key=lambda x: x['revenue'], reverse=True)[:50]:
+            result.append({
+                'name':    item['name'],
+                'revenue': item['revenue'],
+                'qty':     item['qty'],
+                'margin':  round(item['margin_sum'] / item['_cnt'], 1) if item['_cnt'] else 0,
+                'returns': item['returns'],
+            })
+        return result
+
+    if clients_by_year:
+        top_clients = _aggregate_by_year(clients_by_year)
+    if products_by_year:
+        top_products = _aggregate_by_year(products_by_year)
+
     data = {
         'monthly': monthly, 'annual': annual, 'quarterly': quarterly,
         'seasonality': seasonality, 'hist': hist, 'stock': stock_data,
