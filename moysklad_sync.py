@@ -13,6 +13,7 @@ snEco — МойСклад Data Sync v2
 """
 
 import os
+import json
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
@@ -383,10 +384,14 @@ def parse_moves(rows):
 
 
 def parse_profit_report(rows, group_by: str):
+    # МойСклад повертає назву в полі "assortment" (товари) або "counterparty" (контрагенти)
+    api_key = {"Товар": "assortment", "Контрагент": "counterparty"}.get(group_by, group_by.lower())
     records = []
     for r in rows:
+        entity = r.get(api_key) or {}
+        name = entity.get("name", "") if isinstance(entity, dict) else str(entity)
         records.append({
-            group_by:               r.get("name", safe(r.get(group_by.lower(), {}))),
+            group_by:               name,
             "Продано, шт":          r.get("sellQuantity", 0),
             "Виручка, грн":         r.get("sellSum", 0) / 100,
             "Собівартість, грн":    r.get("buySum", 0) / 100,       # ⚠️ може бути неповною
@@ -617,36 +622,42 @@ def generate_dashboard():
                 'reserve': round(r['Резерв']), 'available': round(r['Доступно']),
                 'sum': round(r['Сума, грн'])})
 
-    # Counterparty names if available
-    cp_path = OUTPUT_DIR / "counterparties.xlsx"
+    # ── Топ контрагентів (з profit-звіту — найточніші дані) ──────────────────
     top_clients = []
-    if cp_path.exists():
-        cp = pd.read_excel(cp_path)
-        cp_map = cp.set_index('id')['Назва'].to_dict()
-        def extract_uuid(val):
-            import re
-            m = re.search(r'counterparty/([a-f0-9\-]{36})', str(val))
-            return m.group(1) if m else None
-        inc2 = inc.copy()
-        inc2['cp_id'] = inc2['Контрагент'].apply(extract_uuid) if inc2['Контрагент'].dtype == object else inc2['Контрагент'].astype(str)
-        inc2['cp_name'] = inc2['cp_id'].map(cp_map).fillna('Невідомий')
-        top = inc2.groupby('cp_name').agg(sum=('Сума, грн', 'sum'), count=('Сума, грн', 'count')).sort_values('sum', ascending=False).head(20).reset_index()
-        top_clients = top.rename(columns={'cp_name': 'name'}).to_dict('records')
-    else:
-        def extract_uuid(val):
-            import re
-            m = re.search(r'counterparty/([a-f0-9\-]{36})', str(val))
-            return m.group(1) if m else None
-        inc2 = inc.copy()
-        inc2['cp_id'] = inc2['Контрагент'].apply(extract_uuid) if inc2['Контрагент'].dtype == object else inc2['Контрагент'].astype(str)
-        top = inc2.groupby('cp_id').agg(sum=('Сума, грн', 'sum'), count=('Сума, грн', 'count')).sort_values('sum', ascending=False).head(20).reset_index()
-        top['name'] = [f'Клієнт #{i+1}' for i in range(len(top))]
-        top_clients = top[['name', 'sum', 'count']].to_dict('records')
+    cp_report_path = OUTPUT_DIR / "report_profit_by_counterparty.xlsx"
+    if cp_report_path.exists():
+        cp_df = pd.read_excel(cp_report_path)
+        cp_df = cp_df[cp_df['Контрагент'].notna() & (cp_df['Виручка, грн'] > 0)]
+        cp_df = cp_df.sort_values('Виручка, грн', ascending=False).head(50)
+        for _, r in cp_df.iterrows():
+            top_clients.append({
+                'name':    str(r['Контрагент']),
+                'revenue': round(float(r['Виручка, грн'])),
+                'qty':     int(r.get('Продано, шт') or 0),
+                'margin':  round(float(r.get('Маржа %') or 0), 1),
+                'returns': round(float(r.get('Сума повернень, грн') or 0)),
+            })
+
+    # ── Топ товарів ───────────────────────────────────────────────────────────
+    top_products = []
+    prod_report_path = OUTPUT_DIR / "report_profit_by_product.xlsx"
+    if prod_report_path.exists():
+        prod_df = pd.read_excel(prod_report_path)
+        prod_df = prod_df[prod_df['Товар'].notna() & (prod_df['Виручка, грн'] > 0)]
+        prod_df = prod_df.sort_values('Виручка, грн', ascending=False).head(50)
+        for _, r in prod_df.iterrows():
+            top_products.append({
+                'name':    str(r['Товар']),
+                'revenue': round(float(r['Виручка, грн'])),
+                'qty':     int(r.get('Продано, шт') or 0),
+                'margin':  round(float(r.get('Маржа %') or 0), 1),
+                'returns': round(float(r.get('Сума повернень, грн') or 0)),
+            })
 
     data = {
         'monthly': monthly, 'annual': annual, 'quarterly': quarterly,
         'seasonality': seasonality, 'hist': hist, 'stock': stock_data,
-        'top_clients': top_clients,
+        'top_clients': top_clients, 'top_products': top_products,
         'generated': datetime.now().strftime('%d.%m.%Y %H:%M'),
         'summary': {
             'total_inc': round(inc['Сума, грн'].sum()),
