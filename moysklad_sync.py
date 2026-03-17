@@ -1022,6 +1022,38 @@ def generate_dashboard():
     if products_by_year:
         top_products = _aggregate_by_year(products_by_year)
 
+    # ── Daily data: last 30 / prev 30 / same period last year ────────────────
+    try:
+        inc_daily = inc.copy()
+        inc_daily['Date'] = inc_daily['Дата'].dt.normalize()
+        today_d = pd.Timestamp.now().normalize()
+        d30_start   = today_d - pd.Timedelta(days=29)
+        prev30_end   = d30_start - pd.Timedelta(days=1)
+        prev30_start = prev30_end - pd.Timedelta(days=29)
+        ly30_end     = today_d - pd.Timedelta(days=365)
+        ly30_start   = d30_start - pd.Timedelta(days=365)
+
+        def _daily_agg(start, end):
+            mask = (inc_daily['Date'] >= start) & (inc_daily['Date'] <= end)
+            grp = inc_daily[mask].groupby('Date')['Сума, грн'].sum()
+            idx = pd.date_range(start, end)
+            grp = grp.reindex(idx, fill_value=0)
+            return [round(float(v)) for v in grp.values]
+
+        daily_30 = {
+            'labels':     [d.strftime('%m-%d') for d in pd.date_range(d30_start, today_d)],
+            'curr':       _daily_agg(d30_start, today_d),
+            'prev':       _daily_agg(prev30_start, prev30_end),
+            'ly':         _daily_agg(ly30_start, ly30_end),
+            'curr_label': f"{d30_start.strftime('%d.%m')}–{today_d.strftime('%d.%m.%Y')}",
+            'prev_label': f"{prev30_start.strftime('%d.%m')}–{prev30_end.strftime('%d.%m.%Y')}",
+            'ly_label':   f"{ly30_start.strftime('%d.%m')}–{ly30_end.strftime('%d.%m.%Y')}",
+        }
+        print(f"  📅 Daily sparkline: curr={len(daily_30['curr'])}д, prev={len(daily_30['prev'])}д, ly={len(daily_30['ly'])}д")
+    except Exception as e:
+        print(f"  ⚠️  daily_30 не побудовано: {e}")
+        daily_30 = {}
+
     data = {
         'monthly': monthly, 'annual': annual, 'quarterly': quarterly,
         'seasonality': seasonality, 'hist': hist,
@@ -1030,6 +1062,7 @@ def generate_dashboard():
         'clients_by_year': clients_by_year, 'products_by_year': products_by_year,
         'clients_by_quarter': clients_by_quarter, 'products_by_quarter': products_by_quarter,
         'clients_by_month': clients_by_month, 'products_by_month': products_by_month,
+        'daily_30': daily_30,
         'generated': datetime.now().strftime('%d.%m.%Y %H:%M'),
         'summary': {
             'total_inc': round(inc['Сума, грн'].sum()),
