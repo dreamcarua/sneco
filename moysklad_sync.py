@@ -269,17 +269,38 @@ def parse_productfolders(rows):
     } for r in rows]
 
 
+def categorize_product(name: str) -> str:
+    """Визначає категорію товару за ключовими словами у назві."""
+    n = (name or "").lower()
+    # Сировина — свіжий сир
+    if any(k in n for k in ["свежий сыр", "свіжий сир", "свежий сир", "cвежий сыр",
+                             "fresh cheese", "сировина"]):
+        return "Сировина"
+    # Упаковка
+    if any(k in n for k in ["упаковка", "стікер", "sticker", "короб", "showbox",
+                             "гофро", "скотч", "плівка", "пакет", "етикетка",
+                             "label", "box", "пачка"]):
+        return "Упаковка"
+    # Готова продукція — сушений сир snEco
+    if any(k in n for k in ["сир сушений", "dried cheese", "хрусткий сир",
+                             "sneco", "snEco".lower()]):
+        return "Готова продукція"
+    return "Інше"
+
+
 def parse_stock(rows):
     return [{
         "Товар":        r.get("name"),
         "Код":          r.get("code"),
         "Артикул":      r.get("article"),
         "Склад":        safe(r.get("store")),
+        "Категорія":    categorize_product(r.get("name", "")),
         "Залишок":      r.get("stock", 0),
         "Резерв":       r.get("reserve", 0),
         "Очікується":   r.get("inTransit", 0),
         "Доступно":     r.get("quantity", 0),
         "Ціна, грн":    r.get("price", 0) / 100,
+        "Вартість, грн": round(r.get("stock", 0) * (r.get("price", 0) / 100), 2),
         "Сума, грн":    r.get("stockSum", 0) / 100,
     } for r in rows]
 
@@ -390,13 +411,34 @@ def parse_profit_report(rows, group_by: str):
     for r in rows:
         entity = r.get(api_key) or {}
         name = entity.get("name", "") if isinstance(entity, dict) else str(entity)
+        revenue  = r.get("sellSum", 0) / 100
+        # sellCostSum — собівартість продажів (правильне поле МойСклад)
+        cost     = r.get("sellCostSum", 0) / 100
+        # grossProfit = виручка − собівартість (якщо API повертає)
+        gp_raw   = r.get("grossProfit", 0) / 100
+        # markup (наценка) в частках (1.3888 = 138.88%)
+        markup_f = r.get("margin", 0)   # МойСклад повертає markup як десятковий дріб
+        markup_pct = round(markup_f * 100, 2) if markup_f else 0
+
+        # Прибуток: беремо grossProfit якщо є; інакше — виручка − собівартість;
+        # якщо собівартість теж 0 — обчислюємо з markup:
+        # profit = revenue × markup / (1 + markup)   [де markup у частках]
+        if gp_raw != 0:
+            profit = gp_raw
+        elif cost != 0:
+            profit = round(revenue - cost, 2)
+        elif markup_f and markup_f > 0:
+            profit = round(revenue * markup_f / (1 + markup_f), 2)
+        else:
+            profit = 0
+
         records.append({
             group_by:               name,
             "Продано, шт":          r.get("sellQuantity", 0),
-            "Виручка, грн":         r.get("sellSum", 0) / 100,
-            "Собівартість, грн":    r.get("buySum", 0) / 100,       # ⚠️ може бути неповною
-            "Прибуток, грн":        r.get("grossProfit", 0) / 100,  # ⚠️ може бути неповним
-            "Маржа %":              round(r.get("margin", 0) * 100, 2) if r.get("margin") else 0,
+            "Виручка, грн":         revenue,
+            "Собівартість, грн":    cost,
+            "Прибуток, грн":        profit,
+            "Маржа %":              markup_pct,
             "Повернень, шт":        r.get("returnQuantity", 0),
             "Сума повернень, грн":  r.get("returnSum", 0) / 100,
         })
@@ -473,7 +515,33 @@ def main():
         print(f"  stock: {min(offset, total)}/{total}")
         if offset >= total:
             break
-    save_excel(pd.DataFrame(parse_stock(all_rows)), "stock", reliable=True)
+    stock_df = pd.DataFrame(parse_stock(all_rows))
+
+    # ── Підтягуємо Мін. залишок з products ───────────────
+    prod_path = OUTPUT_DIR / "products.xlsx"
+    if prod_path.exists():
+        try:
+            prod_df = pd.read_excel(prod_path)[['Назва', 'Мін. залишок']]
+            prod_df = prod_df[prod_df['Мін. залишок'] > 0]
+            stock_df = stock_df.merge(prod_df, left_on='Товар', right_on='Назва', how='left')
+            stock_df['Мін. залишок'] = stock_df['Мін. залишок'].fillna(0)
+            stock_df.drop(columns=['Назва'], errors='ignore', inplace=True)
+        except Exception as e:
+            print(f"  ⚠️  Не вдалося приєднати products: {e}")
+            stock_df['Мін. залишок'] = 0
+    else:
+        stock_df['Мін. залишок'] = 0
+
+    save_excel(stock_df, "stock", reliable=True)
+
+    # ── Щоденний snapshot складу ──────────────────────────
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    snapshot_path = OUTPUT_DIR / f"stock_{today_str}.xlsx"
+    if not snapshot_path.exists():
+        save_excel(stock_df, f"stock_{today_str}", reliable=False)
+        print(f"  📸 Snapshot збережено: stock_{today_str}.xlsx")
+    else:
+        print(f"  ✅ Snapshot вже є: stock_{today_str}.xlsx")
 
     # ── ⚠️ НЕПОВНІ ДАНІ ───────────────────────────────────
 
@@ -688,12 +756,138 @@ def generate_dashboard():
         'count': int(((inc['Сума, грн'] >= buckets[i]) & (inc['Сума, грн'] < buckets[i+1])).sum())}
         for i in range(len(buckets)-1)]
 
-    stock_data = []
+    # ── Аналітика складу ──────────────────────────────────────────────────────
+    stock_data      = []   # повна таблиця (для старого SKU-widget)
+    stock_detail    = {}   # розширений блок для procurement dashboard
+    stock_history   = []   # динаміка залишків з щоденних snapshot
+
     if not stk.empty:
-        for _, r in stk[stk['Залишок'] > 0].sort_values('Залишок', ascending=False).head(25).iterrows():
-            stock_data.append({'name': r['Товар'], 'stock': round(r['Залишок']),
-                'reserve': round(r['Резерв']), 'available': round(r['Доступно']),
-                'sum': round(r['Сума, грн'])})
+        s = stk.copy()
+        # Вартість, якщо колонки немає (старі дані)
+        if 'Вартість, грн' not in s.columns:
+            s['Вартість, грн'] = s['Залишок'] * s.get('Ціна, грн', 0)
+        if 'Категорія' not in s.columns:
+            s['Категорія'] = s['Товар'].apply(categorize_product)
+        if 'Мін. залишок' not in s.columns:
+            s['Мін. залишок'] = 0
+
+        # ── Повна таблиця ─────────────────────────────────
+        for _, r in s[s['Залишок'] > 0].sort_values('Вартість, грн', ascending=False).iterrows():
+            stock_data.append({
+                'name':      r['Товар'],
+                'category':  r.get('Категорія', 'Інше'),
+                'stock':     round(float(r['Залишок']), 2),
+                'reserve':   round(float(r['Резерв']), 2),
+                'inTransit': round(float(r.get('Очікується', 0)), 2),
+                'available': round(float(r['Доступно']), 2),
+                'price':     round(float(r.get('Ціна, грн', 0)), 2),
+                'value':     round(float(r['Вартість, грн']), 2),
+                'minStock':  round(float(r.get('Мін. залишок', 0)), 2),
+            })
+
+        total_value = round(s['Вартість, грн'].sum())
+
+        # ── KPI по категоріях ──────────────────────────────
+        cat_stats = {}
+        for cat, grp in s.groupby('Категорія'):
+            cat_stats[cat] = {
+                'value': round(grp['Вартість, грн'].sum()),
+                'items': int((grp['Залишок'] > 0).sum()),
+            }
+
+        # ── Критичні позиції (доступно < мін. залишок) ────
+        critical = []
+        has_min = s[s['Мін. залишок'] > 0]
+        for _, r in has_min.iterrows():
+            if r['Доступно'] < r['Мін. залишок']:
+                critical.append({
+                    'name':      r['Товар'],
+                    'category':  r.get('Категорія', 'Інше'),
+                    'available': round(float(r['Доступно']), 2),
+                    'minStock':  round(float(r['Мін. залишок']), 2),
+                    'inTransit': round(float(r.get('Очікується', 0)), 2),
+                    'deficit':   round(float(r['Мін. залишок'] - r['Доступно']), 2),
+                })
+        critical.sort(key=lambda x: x['deficit'], reverse=True)
+
+        # ── Позиції в дорозі ──────────────────────────────
+        in_transit = []
+        for _, r in s[s.get('Очікується', s.get('Очікується', pd.Series(0, index=s.index))) > 0].iterrows():
+            in_transit.append({
+                'name':      r['Товар'],
+                'category':  r.get('Категорія', 'Інше'),
+                'inTransit': round(float(r.get('Очікується', 0)), 2),
+                'available': round(float(r['Доступно']), 2),
+                'stock':     round(float(r['Залишок']), 2),
+            })
+
+        # ── ABC-аналіз по вартості ────────────────────────
+        abc_df = s[s['Вартість, грн'] > 0].sort_values('Вартість, грн', ascending=False).copy()
+        abc_df['cum_share'] = abc_df['Вартість, грн'].cumsum() / abc_df['Вартість, грн'].sum()
+        def abc_class(share):
+            if share <= 0.80: return 'A'
+            if share <= 0.95: return 'B'
+            return 'C'
+        abc_df['ABC'] = abc_df['cum_share'].apply(abc_class)
+        abc_list = []
+        for _, r in abc_df.iterrows():
+            abc_list.append({
+                'name':     r['Товар'],
+                'category': r.get('Категорія', 'Інше'),
+                'value':    round(float(r['Вартість, грп'] if 'Вартість, грп' in r else r['Вартість, грн']), 2),
+                'stock':    round(float(r['Залишок']), 2),
+                'abc':      r['ABC'],
+                'cumShare': round(float(r['cum_share']) * 100, 1),
+            })
+
+        # ── ABC summary ───────────────────────────────────
+        abc_summary = {}
+        for cls in ['A', 'B', 'C']:
+            grp = abc_df[abc_df['ABC'] == cls]
+            abc_summary[cls] = {
+                'items': len(grp),
+                'value': round(grp['Вартість, грн'].sum()),
+                'share': round(grp['Вартість, грн'].sum() / total_value * 100, 1) if total_value else 0,
+            }
+
+        stock_detail = {
+            'total_value':  total_value,
+            'total_items':  int((s['Залишок'] > 0).sum()),
+            'critical_cnt': len(critical),
+            'in_transit_cnt': len(in_transit),
+            'categories':   cat_stats,
+            'critical':     critical,
+            'in_transit':   in_transit,
+            'abc':          abc_list,
+            'abc_summary':  abc_summary,
+            'updated':      datetime.now().strftime('%d.%m.%Y %H:%M'),
+        }
+
+    # ── Динаміка залишків з щоденних snapshot ─────────────────────────────────
+    import glob as _glob
+    snap_files = sorted(_glob.glob(str(OUTPUT_DIR / "stock_20*.xlsx")))
+    key_items = ['Сир сушений snEco "Чеддер", 28г',
+                 'Сир сушений snEco "Гауда", 28г',
+                 'Свежий Сыр Гауда Голландия',
+                 'Упаковка snEco «Cheddar», 28г']
+    history_dict = {item: [] for item in key_items}
+    dates_seen = []
+    for snap_path in snap_files[-30:]:   # останні 30 днів
+        snap_date = snap_path.split('stock_')[-1].replace('.xlsx', '')
+        try:
+            snap_df = pd.read_excel(snap_path)
+            dates_seen.append(snap_date)
+            for item in key_items:
+                row = snap_df[snap_df['Товар'] == item]
+                val = round(float(row['Залишок'].iloc[0]), 2) if not row.empty else None
+                history_dict[item].append(val)
+        except Exception:
+            pass
+    if dates_seen:
+        stock_history = {
+            'dates': dates_seen,
+            'series': [{'name': k, 'data': v} for k, v in history_dict.items()],
+        }
 
     # ── Топ контрагентів (з profit-звіту — найточніші дані) ──────────────────
     top_clients = []
@@ -706,6 +900,7 @@ def generate_dashboard():
             top_clients.append({
                 'name':    str(r['Контрагент']),
                 'revenue': round(float(r['Виручка, грн'])),
+                'profit':  round(float(r.get('Прибуток, грн') or 0)),
                 'qty':     int(r.get('Продано, шт') or 0),
                 'margin':  round(float(r.get('Маржа %') or 0), 1),
                 'returns': round(float(r.get('Сума повернень, грн') or 0)),
@@ -722,6 +917,7 @@ def generate_dashboard():
             top_products.append({
                 'name':    str(r['Товар']),
                 'revenue': round(float(r['Виручка, грн'])),
+                'profit':  round(float(r.get('Прибуток, грн') or 0)),
                 'qty':     int(r.get('Продано, шт') or 0),
                 'margin':  round(float(r.get('Маржа %') or 0), 1),
                 'returns': round(float(r.get('Сума повернень, грн') or 0)),
@@ -744,6 +940,7 @@ def generate_dashboard():
             return [
                 {'name':    str(r[name_col]),
                  'revenue': round(float(r['Виручка, грн'])),
+                 'profit':  round(float(r.get('Прибуток, грн') or 0)),
                  'qty':     int(r.get('Продано, шт') or 0),
                  'margin':  round(float(r.get('Маржа %') or 0), 1),
                  'returns': round(float(r.get('Сума повернень, грн') or 0))}
@@ -791,9 +988,10 @@ def generate_dashboard():
             for item in year_data:
                 n = item['name']
                 if n not in agg:
-                    agg[n] = {'name': n, 'revenue': 0, 'qty': 0,
+                    agg[n] = {'name': n, 'revenue': 0, 'profit': 0, 'qty': 0,
                                'margin_sum': 0.0, 'returns': 0, '_cnt': 0}
                 agg[n]['revenue']     += item.get('revenue', 0)
+                agg[n]['profit']      += item.get('profit', 0)
                 agg[n]['qty']         += item.get('qty', 0)
                 agg[n]['returns']     += item.get('returns', 0)
                 agg[n]['margin_sum']  += item.get('margin', 0.0)
@@ -803,6 +1001,7 @@ def generate_dashboard():
             result.append({
                 'name':    item['name'],
                 'revenue': item['revenue'],
+                'profit':  item['profit'],
                 'qty':     item['qty'],
                 'margin':  round(item['margin_sum'] / item['_cnt'], 1) if item['_cnt'] else 0,
                 'returns': item['returns'],
@@ -816,7 +1015,8 @@ def generate_dashboard():
 
     data = {
         'monthly': monthly, 'annual': annual, 'quarterly': quarterly,
-        'seasonality': seasonality, 'hist': hist, 'stock': stock_data,
+        'seasonality': seasonality, 'hist': hist,
+        'stock': stock_data, 'stock_detail': stock_detail, 'stock_history': stock_history,
         'top_clients': top_clients, 'top_products': top_products,
         'clients_by_year': clients_by_year, 'products_by_year': products_by_year,
         'clients_by_quarter': clients_by_quarter, 'products_by_quarter': products_by_quarter,
