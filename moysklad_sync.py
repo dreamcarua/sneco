@@ -507,6 +507,24 @@ def main():
     rows = fetch_report("report/profit/bycounterparty")
     save_excel(pd.DataFrame(parse_profit_report(rows, "Контрагент")), "report_profit_by_counterparty", reliable=False)
 
+    # ── Річні звіти для фільтрації в дашборді ─────────────────
+    current_year = datetime.now().year
+    for year in range(2023, current_year + 1):
+        mf = f"{year}-01-01 00:00:00"
+        mt = f"{year}-12-31 23:59:59"
+        print(f"\n📈 Річний звіт контрагентів {year}...")
+        rows = fetch_report("report/profit/bycounterparty",
+                            extra_params={"momentFrom": mf, "momentTo": mt})
+        if rows:
+            save_excel(pd.DataFrame(parse_profit_report(rows, "Контрагент")),
+                       f"report_profit_cp_{year}", reliable=False)
+        print(f"📈 Річний звіт товарів {year}...")
+        rows = fetch_report("report/profit/byproduct",
+                            extra_params={"momentFrom": mf, "momentTo": mt})
+        if rows:
+            save_excel(pd.DataFrame(parse_profit_report(rows, "Товар")),
+                       f"report_profit_prod_{year}", reliable=False)
+
     # ── Генерація дашборду ────────────────────────────────
     print("\n🎨 Генерую dashboard.html...")
     try:
@@ -654,10 +672,51 @@ def generate_dashboard():
                 'returns': round(float(r.get('Сума повернень, грн') or 0)),
             })
 
+    # ── Per-year breakdowns for filtered analytics ───────────────────────────
+    # Читаємо річні profit-звіти, що генеруються sync-скриптом
+    clients_by_year: dict = {}
+    products_by_year: dict = {}
+
+    for year in range(2023, datetime.now().year + 1):
+        cp_y = OUTPUT_DIR / f"report_profit_cp_{year}.xlsx"
+        if cp_y.exists():
+            try:
+                ydf = pd.read_excel(cp_y)
+                ydf = ydf[ydf['Контрагент'].notna() & (ydf['Виручка, грн'] > 0)]
+                ydf = ydf.sort_values('Виручка, грн', ascending=False)
+                clients_by_year[str(year)] = [
+                    {'name': str(r['Контрагент']),
+                     'revenue': round(float(r['Виручка, грн'])),
+                     'qty': int(r.get('Продано, шт') or 0),
+                     'margin': round(float(r.get('Маржа %') or 0), 1),
+                     'returns': round(float(r.get('Сума повернень, грн') or 0))}
+                    for _, r in ydf.iterrows()
+                ]
+            except Exception:
+                pass
+
+        prod_y = OUTPUT_DIR / f"report_profit_prod_{year}.xlsx"
+        if prod_y.exists():
+            try:
+                ydf = pd.read_excel(prod_y)
+                ydf = ydf[ydf['Товар'].notna() & (ydf['Виручка, грн'] > 0)]
+                ydf = ydf.sort_values('Виручка, грн', ascending=False)
+                products_by_year[str(year)] = [
+                    {'name': str(r['Товар']),
+                     'revenue': round(float(r['Виручка, грн'])),
+                     'qty': int(r.get('Продано, шт') or 0),
+                     'margin': round(float(r.get('Маржа %') or 0), 1),
+                     'returns': round(float(r.get('Сума повернень, грн') or 0))}
+                    for _, r in ydf.iterrows()
+                ]
+            except Exception:
+                pass
+
     data = {
         'monthly': monthly, 'annual': annual, 'quarterly': quarterly,
         'seasonality': seasonality, 'hist': hist, 'stock': stock_data,
         'top_clients': top_clients, 'top_products': top_products,
+        'clients_by_year': clients_by_year, 'products_by_year': products_by_year,
         'generated': datetime.now().strftime('%d.%m.%Y %H:%M'),
         'summary': {
             'total_inc': round(inc['Сума, грн'].sum()),
