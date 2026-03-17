@@ -141,6 +141,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* ─── EXTRA CHART HEIGHTS ─── */
 .chart-h400{position:relative;height:400px}
+.chart-h600{position:relative;height:600px}
 .chart-h360{position:relative;height:360px}
 
 /* ─── EMPTY STATE ─── */
@@ -175,7 +176,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <button class="tab-btn on" id="tabbtn-1" onclick="showTab(1)"><span class="tab-icon">📊</span>Огляд</button>
   <button class="tab-btn" id="tabbtn-2" onclick="showTab(2)"><span class="tab-icon">📈</span>Динаміка</button>
   <button class="tab-btn" id="tabbtn-3" onclick="showTab(3)"><span class="tab-icon">👥</span>Клієнти & Товари</button>
-  <button class="tab-btn" id="tabbtn-4" onclick="showTab(4)"><span class="tab-icon">📦</span>Склад & Таблиці</button>
+  <button class="tab-btn" id="tabbtn-4" onclick="showTab(4)"><span class="tab-icon">📦</span>Склад</button>
 </div>
 
 <!-- FILTER BAR -->
@@ -266,6 +267,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <!-- ANNUAL KPIs -->
 <div class="sec">По роках</div>
 <div class="g4" id="annualKpis"></div>
+
+<!-- ANNUAL TABLE -->
+<div class="sec">Зведена таблиця по роках</div>
+<div class="cc">
+  <div style="overflow-x:auto">
+    <table class="dt">
+      <thead><tr>
+        <th>Рік</th><th>Доходи</th><th>Витрати</th><th>Cash Flow</th>
+        <th>Відвантажень</th><th>Замовлень</th><th>Середній чек</th>
+        <th>Повернення</th><th>Зростання YoY</th>
+      </tr></thead>
+      <tbody id="annualTableBody"></tbody>
+    </table>
+  </div>
+</div>
 
 </div><!-- /tab-1 -->
 
@@ -379,60 +395,41 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 
+<!-- TOP MONTHS TABLE -->
+<div class="sec">Топ місяці за виручкою</div>
+<div class="cc">
+  <div class="cc-head">
+    <div>
+      <div class="cc-title">Топ місяці за виручкою</div>
+      <div class="cc-sub">Частка кожного місяця у вибраному періоді</div>
+    </div>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="dt">
+      <thead><tr>
+        <th>#</th><th>Місяць</th><th>Виручка</th><th>Замовлень</th><th>Частка</th>
+      </tr></thead>
+      <tbody id="topMonthsBody"></tbody>
+    </table>
+  </div>
+</div>
+
 </div><!-- /tab-2 -->
 
 <!-- ══════════ TAB 3: КЛІЄНТИ & ТОВАРИ ══════════ -->
 <div class="tab-content" id="tab-3">
 
-<!-- SALES FOCUS -->
-<div class="sec">Топ місяці за виручкою</div>
-<div class="g2">
-  <div class="cc">
-    <div class="cc-head">
-      <div>
-        <div class="cc-title">Топ місяці за виручкою</div>
-        <div class="cc-sub">Частка кожного місяця у вибраному періоді</div>
-      </div>
-    </div>
-    <div style="overflow-x:auto">
-      <table class="dt">
-        <thead><tr>
-          <th>#</th><th>Місяць</th><th>Виручка</th><th>Замовлень</th><th>Частка</th>
-        </tr></thead>
-        <tbody id="topMonthsBody"></tbody>
-      </table>
-    </div>
-  </div>
-  <div class="cc">
-    <div class="cc-head">
-      <div>
-        <div class="cc-title">Ключові SKU у запасі</div>
-        <div class="cc-sub">Топ позицій за доступною кількістю на складі</div>
-      </div>
-    </div>
-    <div style="overflow-x:auto">
-      <table class="dt">
-        <thead><tr>
-          <th>#</th><th>SKU</th><th>Доступно</th><th>Резерв</th><th>Частка</th>
-        </tr></thead>
-        <tbody id="topSkuBody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-
 <!-- TOP CLIENTS -->
-<div class="sec">Топ контрагентів</div>
+<div class="sec">Топ контрагентів — виручка</div>
 <div class="g2" id="clientsSection">
   <div class="cc">
     <div class="cc-head">
       <div>
-        <div class="cc-title">Топ 15 клієнтів — виручка</div>
+        <div class="cc-title">Топ 50 клієнтів — виручка</div>
         <div class="cc-sub">Сумарно за весь період | МойСклад звіт</div>
       </div>
     </div>
-    <div class="chart-h400" id="clientsChartWrap"><canvas id="clientsChart"></canvas></div>
+    <div class="chart-h600" id="clientsChartWrap"><canvas id="clientsChart"></canvas></div>
   </div>
   <div class="cc">
     <div class="cc-head">
@@ -442,7 +439,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
       <input id="clientsSearch" onkeyup="filterTable('clientsBody',this.value)" placeholder="🔍 Пошук..." style="padding:6px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;outline:none">
     </div>
-    <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
+    <div style="overflow-x:auto;max-height:600px;overflow-y:auto">
       <table class="dt">
         <thead style="position:sticky;top:0;background:#fff;z-index:1"><tr>
           <th>#</th><th>Контрагент</th>
@@ -456,17 +453,50 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+<!-- TOP CLIENTS MARGIN -->
+<div class="sec">Топ контрагентів — маржинальність</div>
+<div class="g2" id="clientsMarginSection">
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Топ 50 клієнтів — маржинальність</div>
+        <div class="cc-sub">Відсортовано за маржею | МойСклад звіт</div>
+      </div>
+    </div>
+    <div class="chart-h600" id="clientsMarginChartWrap"><canvas id="clientsMarginChart"></canvas></div>
+  </div>
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Контрагенти за маржею</div>
+        <div class="cc-sub">Топ 50 клієнтів, відсортовано за маржинальністю</div>
+      </div>
+      <input id="clientsMarginSearch" onkeyup="filterTable('clientsMarginBody',this.value)" placeholder="🔍 Пошук..." style="padding:6px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;outline:none">
+    </div>
+    <div style="overflow-x:auto;max-height:600px;overflow-y:auto">
+      <table class="dt">
+        <thead style="position:sticky;top:0;background:#fff;z-index:1"><tr>
+          <th>#</th><th>Контрагент</th>
+          <th>Маржа, %</th><th>Виручка, грн</th>
+          <th>Продано, шт</th><th>Повернення</th>
+        </tr></thead>
+        <tbody id="clientsMarginBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- TOP PRODUCTS -->
-<div class="sec">Аналітика товарів</div>
+<div class="sec">Аналітика товарів — виручка</div>
 <div class="g2" id="productsSection">
   <div class="cc">
     <div class="cc-head">
       <div>
-        <div class="cc-title">Топ 15 товарів — виручка</div>
+        <div class="cc-title">Топ 50 товарів — виручка</div>
         <div class="cc-sub">Сумарно за весь період | МойСклад звіт</div>
       </div>
     </div>
-    <div class="chart-h400" id="productsChartWrap"><canvas id="productsChart"></canvas></div>
+    <div class="chart-h600" id="productsChartWrap"><canvas id="productsChart"></canvas></div>
   </div>
   <div class="cc">
     <div class="cc-head">
@@ -476,7 +506,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
       <input id="productsSearch" onkeyup="filterTable('productsBody',this.value)" placeholder="🔍 Пошук..." style="padding:6px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;outline:none">
     </div>
-    <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
+    <div style="overflow-x:auto;max-height:600px;overflow-y:auto">
       <table class="dt">
         <thead style="position:sticky;top:0;background:#fff;z-index:1"><tr>
           <th>#</th><th>Товар</th>
@@ -490,9 +520,42 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+<!-- TOP PRODUCTS MARGIN -->
+<div class="sec">Аналітика товарів — маржинальність</div>
+<div class="g2" id="productsMarginSection">
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Топ 50 товарів — маржинальність</div>
+        <div class="cc-sub">Відсортовано за маржею | МойСклад звіт</div>
+      </div>
+    </div>
+    <div class="chart-h600" id="productsMarginChartWrap"><canvas id="productsMarginChart"></canvas></div>
+  </div>
+  <div class="cc">
+    <div class="cc-head">
+      <div>
+        <div class="cc-title">Товари за маржею</div>
+        <div class="cc-sub">Топ 50 товарів, відсортовано за маржинальністю</div>
+      </div>
+      <input id="productsMarginSearch" onkeyup="filterTable('productsMarginBody',this.value)" placeholder="🔍 Пошук..." style="padding:6px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;outline:none">
+    </div>
+    <div style="overflow-x:auto;max-height:600px;overflow-y:auto">
+      <table class="dt">
+        <thead style="position:sticky;top:0;background:#fff;z-index:1"><tr>
+          <th>#</th><th>Товар</th>
+          <th>Маржа, %</th><th>Виручка, грн</th>
+          <th>Продано, шт</th><th>Повернення</th>
+        </tr></thead>
+        <tbody id="productsMarginBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 </div><!-- /tab-3 -->
 
-<!-- ══════════ TAB 4: СКЛАД & ТАБЛИЦІ ══════════ -->
+<!-- ══════════ TAB 4: СКЛАД ══════════ -->
 <div class="tab-content" id="tab-4">
 
 <!-- STOCK -->
@@ -517,17 +580,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
-<!-- ANNUAL TABLE -->
-<div class="sec">Зведена таблиця по роках</div>
+<!-- KEY SKU -->
+<div class="sec">Ключові SKU у запасі</div>
 <div class="cc">
+  <div class="cc-head">
+    <div>
+      <div class="cc-title">Ключові SKU у запасі</div>
+      <div class="cc-sub">Топ позицій за доступною кількістю на складі</div>
+    </div>
+  </div>
   <div style="overflow-x:auto">
     <table class="dt">
       <thead><tr>
-        <th>Рік</th><th>Доходи</th><th>Витрати</th><th>Cash Flow</th>
-        <th>Відвантажень</th><th>Замовлень</th><th>Середній чек</th>
-        <th>Повернення</th><th>Зростання YoY</th>
+        <th>#</th><th>SKU</th><th>Доступно</th><th>Резерв</th><th>Частка</th>
       </tr></thead>
-      <tbody id="annualTableBody"></tbody>
+      <tbody id="topSkuBody"></tbody>
     </table>
   </div>
 </div>
@@ -666,9 +733,10 @@ function showTab(n){
   // Rebuild charts for the newly shown tab (they need visible dimensions)
   setTimeout(()=>{
     buildFilteredKpis();buildAlerts();buildPeriodCompare();buildSalesFocus();
+    if(n===1){buildAnnualTable();}
     if(n===2){buildMainChart();buildCashflow();buildQuarter();buildAnnual();buildReturns();buildAvgOrder();buildOrders();buildSeason();buildHist();}
-    if(n===3){buildTopClients();buildTopProducts();}
-    if(n===4){buildStock();buildAnnualTable();}
+    if(n===3){buildTopClients();buildTopProducts();buildTopClientsMargin();buildTopProductsMargin();}
+    if(n===4){buildStock();}
   },30);
 }
 
@@ -689,6 +757,8 @@ function rebuildAll(){
   if(currentTab===3){
     buildTopClients();
     buildTopProducts();
+    buildTopClientsMargin();
+    buildTopProductsMargin();
   }
 }
 
@@ -1164,7 +1234,7 @@ function buildTopClients(){
   // Update subtitles
   const titleEl = document.querySelector('#clientsSection .cc-title');
   const subEl = document.querySelector('#clientsSection .cc-sub');
-  if(titleEl) titleEl.textContent = 'Топ 15 клієнтів — виручка';
+  if(titleEl) titleEl.textContent = 'Топ 50 клієнтів — виручка';
   const subNote = filters.year!=='all'
     ? `Рік ${filters.year} | МойСклад звіт`
     : 'Сумарно за весь період | МойСклад звіт';
@@ -1181,11 +1251,11 @@ function buildTopClients(){
     wrap.innerHTML='<canvas id="clientsChart"></canvas>';
   }
 
-  const top15=items.slice(0,15);
-  const maxRev=top15[0]?.revenue||1;
+  const top50=items.slice(0,50);
+  const maxRev=top50[0]?.revenue||1;
   mkChart('clientsChart',{type:'bar',data:{
-    labels:top15.map(r=>r.name.length>28?r.name.substring(0,28)+'…':r.name),
-    datasets:[{label:'Виручка',data:top15.map(r=>Math.round(r.revenue/1000)),backgroundColor:Y,borderRadius:4,borderSkipped:false}]
+    labels:top50.map(r=>r.name.length>28?r.name.substring(0,28)+'…':r.name),
+    datasets:[{label:'Виручка',data:top50.map(r=>Math.round(r.revenue/1000)),backgroundColor:Y,borderRadius:4,borderSkipped:false}]
   },options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fmtK(ctx.raw)} тис. грн`}}},
     scales:{x:{grid:{color:'#F0F0E8'},ticks:{callback:v=>fmtK(v)}},y:{grid:{display:false},ticks:{font:{size:10},color:'#444'}}}}});
@@ -1213,7 +1283,7 @@ function buildTopProducts(){
   // Update subtitles
   const titleEl = document.querySelector('#productsSection .cc-title');
   const subEl = document.querySelector('#productsSection .cc-sub');
-  if(titleEl) titleEl.textContent = 'Топ 15 товарів — виручка';
+  if(titleEl) titleEl.textContent = 'Топ 50 товарів — виручка';
   const subNote2 = filters.year!=='all'
     ? `Рік ${filters.year} | МойСклад звіт`
     : 'Сумарно за весь період | МойСклад звіт';
@@ -1230,10 +1300,10 @@ function buildTopProducts(){
     wrap.innerHTML='<canvas id="productsChart"></canvas>';
   }
 
-  const top15=items.slice(0,15);
+  const top50p=items.slice(0,50);
   mkChart('productsChart',{type:'bar',data:{
-    labels:top15.map(r=>r.name.length>30?r.name.substring(0,30)+'…':r.name),
-    datasets:[{label:'Виручка',data:top15.map(r=>Math.round(r.revenue/1000)),backgroundColor:G,borderRadius:4,borderSkipped:false}]
+    labels:top50p.map(r=>r.name.length>30?r.name.substring(0,30)+'…':r.name),
+    datasets:[{label:'Виручка',data:top50p.map(r=>Math.round(r.revenue/1000)),backgroundColor:G,borderRadius:4,borderSkipped:false}]
   },options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fmtK(ctx.raw)} тис. грн`}}},
     scales:{x:{grid:{color:'#F0F0E8'},ticks:{callback:v=>fmtK(v)}},y:{grid:{display:false},ticks:{font:{size:10},color:'#444'}}}}});
@@ -1247,6 +1317,81 @@ function buildTopProducts(){
       <td>${r.margin>0?`<span class="tag tg">${r.margin}%</span>`:r.margin<0?`<span class="tag tr">${r.margin}%</span>`:'—'}</td>
       <td style="color:var(--muted)">${r.returns>0?fmtN(r.returns):'—'}</td>
       <td style="min-width:100px"><div class="bar-wrap"><div class="bar-fill" style="width:${Math.round(r.revenue/allMaxRev*100)}%;background:var(--g)"></div></div></td>
+    </tr>`).join('');
+}
+
+// ── TOP CLIENTS MARGIN ───────────────────────────────────────
+function buildTopClientsMargin(){
+  const items = getFilteredItems(D.clients_by_year||{}, D.top_clients||[]);
+  const wrap = document.getElementById('clientsMarginChartWrap');
+  const tbody = document.getElementById('clientsMarginBody');
+  if(!items.length){
+    if(wrap) wrap.innerHTML='<div class="empty-state"><div class="es-icon">👥</div><div class="es-title">Немає даних для зрізу</div><div class="es-sub">Спробуй обрати ширший фільтр або запусти синхронізацію</div></div>';
+    if(tbody) tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Немає даних</td></tr>';
+    return;
+  }
+  // Sort by margin descending, filter out zero-margin entries
+  const sorted = items.filter(r=>r.margin!==0).sort((a,b)=>b.margin-a.margin).slice(0,50);
+  if(!sorted.length){
+    if(wrap) wrap.innerHTML='<div class="empty-state"><div class="es-icon">📊</div><div class="es-title">Немає даних по маржі</div></div>';
+    if(tbody) tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Немає даних</td></tr>';
+    return;
+  }
+  if(wrap && !wrap.querySelector('canvas')){
+    wrap.innerHTML='<canvas id="clientsMarginChart"></canvas>';
+  }
+  const colors=sorted.map(r=>r.margin>=0?'rgba(150,193,31,0.75)':'rgba(232,64,64,0.75)');
+  mkChart('clientsMarginChart',{type:'bar',data:{
+    labels:sorted.map(r=>r.name.length>28?r.name.substring(0,28)+'…':r.name),
+    datasets:[{label:'Маржа, %',data:sorted.map(r=>r.margin),backgroundColor:colors,borderRadius:4,borderSkipped:false}]
+  },options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw}%`}}},
+    scales:{x:{grid:{color:'#F0F0E8'},ticks:{callback:v=>v+'%'}},y:{grid:{display:false},ticks:{font:{size:10},color:'#444'}}}}});
+  tbody.innerHTML=sorted.map((r,i)=>`
+    <tr>
+      <td class="rank">${i+1}</td>
+      <td><strong>${r.name}</strong></td>
+      <td>${r.margin>0?`<span class="tag tg">${r.margin}%</span>`:r.margin<0?`<span class="tag tr">${r.margin}%</span>`:'—'}</td>
+      <td>${fmtN(r.revenue)}</td>
+      <td>${r.qty>0?fmtN(r.qty):'—'}</td>
+      <td style="color:var(--muted)">${r.returns>0?fmtN(r.returns):'—'}</td>
+    </tr>`).join('');
+}
+
+// ── TOP PRODUCTS MARGIN ──────────────────────────────────────
+function buildTopProductsMargin(){
+  const items = getFilteredItems(D.products_by_year||{}, D.top_products||[]);
+  const wrap = document.getElementById('productsMarginChartWrap');
+  const tbody = document.getElementById('productsMarginBody');
+  if(!items.length){
+    if(wrap) wrap.innerHTML='<div class="empty-state"><div class="es-icon">📦</div><div class="es-title">Немає даних для зрізу</div><div class="es-sub">Спробуй обрати ширший фільтр або запусти синхронізацію</div></div>';
+    if(tbody) tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Немає даних</td></tr>';
+    return;
+  }
+  const sorted = items.filter(r=>r.margin!==0).sort((a,b)=>b.margin-a.margin).slice(0,50);
+  if(!sorted.length){
+    if(wrap) wrap.innerHTML='<div class="empty-state"><div class="es-icon">📊</div><div class="es-title">Немає даних по маржі</div></div>';
+    if(tbody) tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Немає даних</td></tr>';
+    return;
+  }
+  if(wrap && !wrap.querySelector('canvas')){
+    wrap.innerHTML='<canvas id="productsMarginChart"></canvas>';
+  }
+  const colors=sorted.map(r=>r.margin>=0?'rgba(59,130,246,0.75)':'rgba(232,64,64,0.75)');
+  mkChart('productsMarginChart',{type:'bar',data:{
+    labels:sorted.map(r=>r.name.length>30?r.name.substring(0,30)+'…':r.name),
+    datasets:[{label:'Маржа, %',data:sorted.map(r=>r.margin),backgroundColor:colors,borderRadius:4,borderSkipped:false}]
+  },options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw}%`}}},
+    scales:{x:{grid:{color:'#F0F0E8'},ticks:{callback:v=>v+'%'}},y:{grid:{display:false},ticks:{font:{size:10},color:'#444'}}}}});
+  tbody.innerHTML=sorted.map((r,i)=>`
+    <tr>
+      <td class="rank">${i+1}</td>
+      <td><strong>${r.name}</strong></td>
+      <td>${r.margin>0?`<span class="tag tg">${r.margin}%</span>`:r.margin<0?`<span class="tag tr">${r.margin}%</span>`:'—'}</td>
+      <td>${fmtN(r.revenue)}</td>
+      <td>${r.qty>0?fmtN(r.qty)+' шт':'—'}</td>
+      <td style="color:var(--muted)">${r.returns>0?fmtN(r.returns):'—'}</td>
     </tr>`).join('');
 }
 
