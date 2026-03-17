@@ -1054,6 +1054,163 @@ def generate_dashboard():
         print(f"  ⚠️  daily_30 не побудовано: {e}")
         daily_30 = {}
 
+    # ── GROSS MARGIN TREND (from profit reports) ─────────────────────────────
+    margin_trend = []
+    import glob as _glob
+    for ym in all_ym:
+        y, m = ym.split('-')
+        mpath = OUTPUT_DIR / f"report_profit_cp_{y}_{m}.xlsx"
+        if mpath.exists():
+            try:
+                mdf = pd.read_excel(mpath)
+                rev = float(mdf['Виручка, грн'].sum())
+                cogs = float(mdf.get('Собівартість, грн', pd.Series([0])).sum())
+                profit = float(mdf.get('Прибуток, грн', pd.Series([0])).sum())
+                margin_trend.append({'ym': ym, 'revenue': round(rev), 'cogs': round(cogs),
+                    'profit': round(profit), 'margin_pct': round(profit / rev * 100, 1) if rev else 0})
+            except: pass
+    print(f"  📊 Margin trend: {len(margin_trend)} місяців")
+
+    # ── AR (Accounts Receivable) from demands: shipped − paid ─────────────
+    ar_monthly = []
+    for ym in all_ym:
+        ym_dem = dem[dem['YM'] == ym]
+        shipped = float(ym_dem['Сума, грн'].sum())
+        paid = float(ym_dem['Оплачено, грн'].sum())
+        ar_monthly.append({'ym': ym, 'shipped': round(shipped), 'paid': round(paid), 'ar': round(shipped - paid)})
+    ar_current = round(float(dem['Сума, грн'].sum() - dem['Оплачено, грн'].sum()))
+    # DSO approximation: AR / (daily revenue)
+    last3_inc = inc[inc['Дата'] >= pd.Timestamp.now() - pd.Timedelta(days=90)]
+    avg_daily_rev = float(last3_inc['Сума, грн'].sum()) / 90 if len(last3_inc) else 1
+    dso_days = round(ar_current / avg_daily_rev) if avg_daily_rev > 0 else 0
+    print(f"  💰 AR: {ar_current:,.0f} грн, DSO: {dso_days} днів")
+
+    # ── FUNNEL: ordered → shipped → paid (monthly) ────────────────────────
+    co = pd.read_excel(OUTPUT_DIR / "customer_orders.xlsx")
+    co['Дата'] = pd.to_datetime(co['Дата'], errors='coerce')
+    co['YM'] = co['Дата'].dt.strftime('%Y-%m')
+    co_m = co.groupby('YM')['Сума, грн'].sum()
+    co_paid_m = co.groupby('YM')['Оплачено, грн'].sum()
+    co_shipped_m = co.groupby('YM')['Відвантажено, грн'].sum()
+    funnel_monthly = []
+    for ym in all_ym:
+        funnel_monthly.append({'ym': ym,
+            'ordered': round(float(co_m.get(ym, 0))),
+            'shipped': round(float(co_shipped_m.get(ym, 0))),
+            'paid': round(float(co_paid_m.get(ym, 0)))})
+    print(f"  🔄 Funnel: {len(funnel_monthly)} місяців")
+
+    # ── GEOGRAPHY & CHANNEL SPLIT ─────────────────────────────────────────
+    cp_df = pd.read_excel(OUTPUT_DIR / "counterparties.xlsx")
+    _cp_tags = {}
+    for _, r in cp_df.iterrows():
+        n = str(r.get('Назва', '')).strip()
+        if n: _cp_tags[n] = str(r.get('Теги', '') or '')
+
+    def _classify_geo(name):
+        n = name.upper()
+        if any(p in n for p in ['HAB', 'ARVID', 'NORDQUIST', ' AB']): return 'Швеція'
+        if 'GMBH' in n: return 'Німеччина'
+        if any(p in n for p in ['S.R.O', 'SNECO SK']): return 'Словаччина'
+        if 'SP. Z O.O' in n: return 'Польща'
+        if any(p in n for p in [' LTD', ' LLC']) and not any(uk in n for uk in ['ТОВ', 'ФОП', 'ПП']): return 'Інше'
+        return 'Україна'
+
+    def _classify_channel(name, tags):
+        t = tags.lower()
+        if any(x in t for x in ['horeca', 'кавярня', 'спортзал', 'азс', 'пивная сеть', 'пивний магазин']): return 'HoReCa'
+        if any(x in t for x in ['региональные сети', 'мережа магазинів']): return 'Ритейл'
+        if any(x in t for x in ['b2b', 'дистрибьютор', 'прямая дистрибьюция', 'реализация']): return 'B2B'
+        if any(x in t for x in ['клиенты интернет-магазинов', 'sneco tilda', 'sneco.ua', 'розетка', 'маркетплейс', 'інстаграм', 'новийсайт']): return 'Онлайн'
+        if any(x in t for x in ['розница', 'единичный ритейл', 'продуктовий магазин', 'магазин', 'екомагазин', 'еколавка']): return 'Роздріб'
+        return 'Інше'
+
+    geo_split, channel_split = {}, {}
+    for y in [2023, 2024, 2025, 2026]:
+        ypath = OUTPUT_DIR / f"report_profit_cp_{y}.xlsx"
+        if not ypath.exists(): continue
+        try:
+            ydf = pd.read_excel(ypath)
+            geo_a, ch_a = {}, {}
+            for _, r in ydf.iterrows():
+                name = str(r.get('Контрагент', '')).strip()
+                rev = float(r.get('Виручка, грн') or 0)
+                tags = _cp_tags.get(name, '')
+                g, c = _classify_geo(name), _classify_channel(name, tags)
+                geo_a[g] = geo_a.get(g, 0) + rev
+                ch_a[c] = ch_a.get(c, 0) + rev
+            geo_split[str(y)] = {k: round(v) for k, v in sorted(geo_a.items(), key=lambda x: -x[1])}
+            channel_split[str(y)] = {k: round(v) for k, v in sorted(ch_a.items(), key=lambda x: -x[1])}
+        except: pass
+    print(f"  🌍 Geo/Channel: {list(geo_split.keys())}")
+
+    # ── NEW vs RETURNING CLIENTS + SLEEPING ───────────────────────────────
+    all_cp_months = {}
+    for f in sorted(_glob.glob(str(OUTPUT_DIR / "report_profit_cp_????_??.xlsx"))):
+        ym_key = f.split('_cp_')[1].replace('.xlsx', '').replace('_', '-')
+        try:
+            mdf = pd.read_excel(f)
+            all_cp_months[ym_key] = set(mdf['Контрагент'].dropna().str.strip())
+        except: pass
+    client_cohort = []
+    seen_ever = set()
+    for ym in sorted(all_cp_months.keys()):
+        curr_set = all_cp_months[ym]
+        new_c = curr_set - seen_ever
+        ret_c = curr_set & seen_ever
+        seen_ever |= curr_set
+        client_cohort.append({'ym': ym, 'total': len(curr_set), 'new': len(new_c), 'returning': len(ret_c)})
+    # Sleeping: had >10k lifetime but no activity this month
+    now_ym = datetime.now().strftime('%Y-%m')
+    curr_active = all_cp_months.get(now_ym, set())
+    all_time_rev = {}
+    for ypath in sorted(OUTPUT_DIR.glob("report_profit_cp_20??.xlsx")):
+        try:
+            ydf = pd.read_excel(ypath)
+            for _, r in ydf.iterrows():
+                n = str(r['Контрагент']).strip()
+                all_time_rev[n] = all_time_rev.get(n, 0) + float(r.get('Виручка, грн') or 0)
+        except: pass
+    sleeping = [{'name': n, 'revenue': round(v)}
+        for n, v in sorted(all_time_rev.items(), key=lambda x: -x[1])
+        if v >= 10000 and n not in curr_active][:50]
+    print(f"  👥 Cohort: {len(client_cohort)} міс, sleeping: {len(sleeping)}")
+
+    # ── PRODUCTION ────────────────────────────────────────────────────────
+    PRODUCTION_CAPACITY_KG = 5000  # 5 тон/місяць
+    try:
+        prod_df = pd.read_excel(OUTPUT_DIR / "production_done.xlsx")
+        prod_df['Дата'] = pd.to_datetime(prod_df['Дата'], errors='coerce')
+        prod_df['YM'] = prod_df['Дата'].dt.strftime('%Y-%m')
+        prod_monthly = []
+        for ym in sorted(prod_df['YM'].dropna().unique()):
+            p = prod_df[prod_df['YM'] == ym]
+            qty = round(float(p['Кількість'].sum()), 1)
+            prod_monthly.append({'ym': ym, 'qty': qty, 'batches': len(p)})
+        print(f"  🏭 Production: {len(prod_monthly)} місяців")
+    except:
+        prod_monthly = []
+
+    # ── SUPPLY (procurement) ──────────────────────────────────────────────
+    try:
+        sup_df = pd.read_excel(OUTPUT_DIR / "supply.xlsx")
+        sup_df['Дата'] = pd.to_datetime(sup_df['Дата'], errors='coerce')
+        sup_df['YM'] = sup_df['Дата'].dt.strftime('%Y-%m')
+        supply_monthly = []
+        for ym in sorted(sup_df['YM'].dropna().unique()):
+            s = sup_df[sup_df['YM'] == ym]
+            supply_monthly.append({'ym': ym, 'amount': round(float(s['Сума, грн'].sum())), 'count': len(s)})
+        print(f"  📦 Supply: {len(supply_monthly)} місяців")
+    except:
+        supply_monthly = []
+
+    # ── PROCESSING PLANS (tech cards) ─────────────────────────────────────
+    try:
+        pp_df = pd.read_excel(OUTPUT_DIR / "processing_plans.xlsx")
+        techcards = [{'name': str(r['Назва'])} for _, r in pp_df.iterrows() if pd.notna(r.get('Назва'))]
+    except:
+        techcards = []
+
     data = {
         'monthly': monthly, 'annual': annual, 'quarterly': quarterly,
         'seasonality': seasonality, 'hist': hist,
@@ -1063,6 +1220,14 @@ def generate_dashboard():
         'clients_by_quarter': clients_by_quarter, 'products_by_quarter': products_by_quarter,
         'clients_by_month': clients_by_month, 'products_by_month': products_by_month,
         'daily_30': daily_30,
+        'margin_trend': margin_trend,
+        'ar_monthly': ar_monthly, 'ar_current': ar_current, 'dso_days': dso_days,
+        'funnel_monthly': funnel_monthly,
+        'geo_split': geo_split, 'channel_split': channel_split,
+        'client_cohort': client_cohort, 'sleeping_clients': sleeping,
+        'production': prod_monthly, 'production_capacity': PRODUCTION_CAPACITY_KG,
+        'supply_monthly': supply_monthly,
+        'techcards': techcards,
         'generated': datetime.now().strftime('%d.%m.%Y %H:%M'),
         'summary': {
             'total_inc': round(inc['Сума, грн'].sum()),
