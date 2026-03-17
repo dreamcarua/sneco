@@ -507,23 +507,78 @@ def main():
     rows = fetch_report("report/profit/bycounterparty")
     save_excel(pd.DataFrame(parse_profit_report(rows, "Контрагент")), "report_profit_by_counterparty", reliable=False)
 
-    # ── Річні звіти для фільтрації в дашборді ─────────────────
-    current_year = datetime.now().year
-    for year in range(2023, current_year + 1):
-        mf = f"{year}-01-01 00:00:00"
-        mt = f"{year}-12-31 23:59:59"
-        print(f"\n📈 Річний звіт контрагентів {year}...")
+    # ── Річні, квартальні та місячні звіти для фільтрації ─────
+    import calendar as _cal
+    now = datetime.now()
+    current_year = now.year
+
+    QUARTER_RANGES = {
+        'Q1': ('01-01', '03-31'),
+        'Q2': ('04-01', '06-30'),
+        'Q3': ('07-01', '09-30'),
+        'Q4': ('10-01', '12-31'),
+    }
+
+    def _profit_fetch_and_save(mf, mt, cp_name, prod_name, label):
+        print(f"  📈 {label} — контрагенти...")
         rows = fetch_report("report/profit/bycounterparty",
                             extra_params={"momentFrom": mf, "momentTo": mt})
         if rows:
             save_excel(pd.DataFrame(parse_profit_report(rows, "Контрагент")),
-                       f"report_profit_cp_{year}", reliable=False)
-        print(f"📈 Річний звіт товарів {year}...")
+                       cp_name, reliable=False)
+        print(f"  📈 {label} — товари...")
         rows = fetch_report("report/profit/byproduct",
                             extra_params={"momentFrom": mf, "momentTo": mt})
         if rows:
             save_excel(pd.DataFrame(parse_profit_report(rows, "Товар")),
-                       f"report_profit_prod_{year}", reliable=False)
+                       prod_name, reliable=False)
+
+    for year in range(2023, current_year + 1):
+        # Річний
+        print(f"\n📅 Річні звіти {year}...")
+        _profit_fetch_and_save(
+            f"{year}-01-01 00:00:00", f"{year}-12-31 23:59:59",
+            f"report_profit_cp_{year}", f"report_profit_prod_{year}",
+            f"Рік {year}")
+
+        current_q = (now.month - 1) // 3 + 1
+
+        # Квартальні
+        for q, (qs, qe) in QUARTER_RANGES.items():
+            q_num = int(q[1])
+            q_start_month = (q_num - 1) * 3 + 1
+            # Пропускаємо майбутні квартали
+            if year == current_year and q_start_month > now.month:
+                continue
+            cp_path  = OUTPUT_DIR / f"report_profit_cp_{year}_{q}.xlsx"
+            prod_path = OUTPUT_DIR / f"report_profit_prod_{year}_{q}.xlsx"
+            # Кешуємо минулі квартали — не перезавантажуємо якщо файл вже є
+            is_current_q = (year == current_year and q_num == current_q)
+            if not is_current_q and cp_path.exists() and prod_path.exists():
+                print(f"  ✅ {year} {q} — кеш")
+                continue
+            _profit_fetch_and_save(
+                f"{year}-{qs} 00:00:00", f"{year}-{qe} 23:59:59",
+                f"report_profit_cp_{year}_{q}", f"report_profit_prod_{year}_{q}",
+                f"{year} {q}")
+
+        # Місячні
+        for month in range(1, 13):
+            if year == current_year and month > now.month:
+                break
+            cp_m_path   = OUTPUT_DIR / f"report_profit_cp_{year}_{month:02d}.xlsx"
+            prod_m_path = OUTPUT_DIR / f"report_profit_prod_{year}_{month:02d}.xlsx"
+            is_current_m = (year == current_year and month == now.month)
+            if not is_current_m and cp_m_path.exists() and prod_m_path.exists():
+                print(f"  ✅ {year}/{month:02d} — кеш")
+                continue
+            last_day = _cal.monthrange(year, month)[1]
+            _profit_fetch_and_save(
+                f"{year}-{month:02d}-01 00:00:00",
+                f"{year}-{month:02d}-{last_day} 23:59:59",
+                f"report_profit_cp_{year}_{month:02d}",
+                f"report_profit_prod_{year}_{month:02d}",
+                f"{year}/{month:02d}")
 
     # ── Генерація дашборду ────────────────────────────────
     print("\n🎨 Генерую dashboard.html...")
@@ -533,8 +588,8 @@ def main():
     except Exception as e:
         print(f"  ⚠️  Помилка генерації дашборду: {e}")
 
-    # ── Git auto-push ─────────────────────────────────────
-    git_push()
+    # ── Git auto-push відключено — пуш робиш вручну через GitHub Desktop
+    # git_push()
 
     # ── Підсумок ──────────────────────────────────────────
     print(f"\n{'='*55}")
@@ -672,45 +727,61 @@ def generate_dashboard():
                 'returns': round(float(r.get('Сума повернень, грн') or 0)),
             })
 
-    # ── Per-year breakdowns for filtered analytics ───────────────────────────
-    # Читаємо річні profit-звіти, що генеруються sync-скриптом
-    clients_by_year: dict = {}
-    products_by_year: dict = {}
+    # ── Per-year / quarter / month breakdowns for filtered analytics ─────────
+    clients_by_year: dict    = {}
+    products_by_year: dict   = {}
+    clients_by_quarter: dict = {}
+    products_by_quarter: dict = {}
+    clients_by_month: dict   = {}
+    products_by_month: dict  = {}
+
+    def _read_profit_file(path, name_col):
+        """Читає profit-файл, повертає список dict або []."""
+        try:
+            df = pd.read_excel(path)
+            df = df[df[name_col].notna() & (df['Виручка, грн'] > 0)]
+            df = df.sort_values('Виручка, грн', ascending=False)
+            return [
+                {'name':    str(r[name_col]),
+                 'revenue': round(float(r['Виручка, грн'])),
+                 'qty':     int(r.get('Продано, шт') or 0),
+                 'margin':  round(float(r.get('Маржа %') or 0), 1),
+                 'returns': round(float(r.get('Сума повернень, грн') or 0))}
+                for _, r in df.iterrows()
+            ]
+        except Exception:
+            return []
+
+    QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4']
 
     for year in range(2023, datetime.now().year + 1):
-        cp_y = OUTPUT_DIR / f"report_profit_cp_{year}.xlsx"
-        if cp_y.exists():
-            try:
-                ydf = pd.read_excel(cp_y)
-                ydf = ydf[ydf['Контрагент'].notna() & (ydf['Виручка, грн'] > 0)]
-                ydf = ydf.sort_values('Виручка, грн', ascending=False)
-                clients_by_year[str(year)] = [
-                    {'name': str(r['Контрагент']),
-                     'revenue': round(float(r['Виручка, грн'])),
-                     'qty': int(r.get('Продано, шт') or 0),
-                     'margin': round(float(r.get('Маржа %') or 0), 1),
-                     'returns': round(float(r.get('Сума повернень, грн') or 0))}
-                    for _, r in ydf.iterrows()
-                ]
-            except Exception:
-                pass
-
+        # Річний
+        cp_y   = OUTPUT_DIR / f"report_profit_cp_{year}.xlsx"
         prod_y = OUTPUT_DIR / f"report_profit_prod_{year}.xlsx"
+        if cp_y.exists():
+            clients_by_year[str(year)]  = _read_profit_file(cp_y,   'Контрагент')
         if prod_y.exists():
-            try:
-                ydf = pd.read_excel(prod_y)
-                ydf = ydf[ydf['Товар'].notna() & (ydf['Виручка, грн'] > 0)]
-                ydf = ydf.sort_values('Виручка, грн', ascending=False)
-                products_by_year[str(year)] = [
-                    {'name': str(r['Товар']),
-                     'revenue': round(float(r['Виручка, грн'])),
-                     'qty': int(r.get('Продано, шт') or 0),
-                     'margin': round(float(r.get('Маржа %') or 0), 1),
-                     'returns': round(float(r.get('Сума повернень, грн') or 0))}
-                    for _, r in ydf.iterrows()
-                ]
-            except Exception:
-                pass
+            products_by_year[str(year)] = _read_profit_file(prod_y, 'Товар')
+
+        # Квартальні
+        for q in QUARTERS:
+            cp_qf   = OUTPUT_DIR / f"report_profit_cp_{year}_{q}.xlsx"
+            prod_qf = OUTPUT_DIR / f"report_profit_prod_{year}_{q}.xlsx"
+            key = f"{year}_{q}"
+            if cp_qf.exists():
+                clients_by_quarter[key]  = _read_profit_file(cp_qf,   'Контрагент')
+            if prod_qf.exists():
+                products_by_quarter[key] = _read_profit_file(prod_qf, 'Товар')
+
+        # Місячні
+        for month in range(1, 13):
+            cp_mf   = OUTPUT_DIR / f"report_profit_cp_{year}_{month:02d}.xlsx"
+            prod_mf = OUTPUT_DIR / f"report_profit_prod_{year}_{month:02d}.xlsx"
+            key = f"{year}_{month:02d}"
+            if cp_mf.exists():
+                clients_by_month[key]  = _read_profit_file(cp_mf,   'Контрагент')
+            if prod_mf.exists():
+                products_by_month[key] = _read_profit_file(prod_mf, 'Товар')
 
     # ── Якщо є річні дані — будуємо all-time top_clients/top_products з них ──
     # (звіт за останні 30 днів не репрезентує весь час!)
@@ -748,6 +819,8 @@ def generate_dashboard():
         'seasonality': seasonality, 'hist': hist, 'stock': stock_data,
         'top_clients': top_clients, 'top_products': top_products,
         'clients_by_year': clients_by_year, 'products_by_year': products_by_year,
+        'clients_by_quarter': clients_by_quarter, 'products_by_quarter': products_by_quarter,
+        'clients_by_month': clients_by_month, 'products_by_month': products_by_month,
         'generated': datetime.now().strftime('%d.%m.%Y %H:%M'),
         'summary': {
             'total_inc': round(inc['Сума, грн'].sum()),
