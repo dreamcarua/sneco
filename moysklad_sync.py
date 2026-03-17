@@ -517,6 +517,15 @@ def main():
             break
     stock_df = pd.DataFrame(parse_stock(all_rows))
 
+    # ── Виключаємо технічні позиції (Маркетинг та подібні) ───
+    EXCLUDE_STOCK = ['маркетинг']
+    mask_exclude = stock_df['Товар'].str.lower().str.strip().apply(
+        lambda n: any(ex in (n or '') for ex in EXCLUDE_STOCK)
+    )
+    if mask_exclude.any():
+        print(f"  🚫 Виключено з складу: {list(stock_df.loc[mask_exclude, 'Товар'])}")
+        stock_df = stock_df[~mask_exclude].reset_index(drop=True)
+
     # ── Підтягуємо Мін. залишок з products ───────────────
     prod_path = OUTPUT_DIR / "products.xlsx"
     if prod_path.exists():
