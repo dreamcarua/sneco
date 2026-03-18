@@ -561,19 +561,19 @@ def main():
     save_excel(pd.DataFrame(parse_moves(rows)), "moves", reliable=False)
 
     print("\n📥 Надходження від постачальників...")
-    rows = fetch_all("entity/supply")
+    rows = fetch_all("entity/supply", expand="agent,store,state")
     save_excel(pd.DataFrame(parse_supply(rows)), "supply", reliable=False)
 
     print("\n🏭 Виробничі замовлення...")
-    rows = fetch_all("entity/processingorder")
+    rows = fetch_all("entity/processingorder", expand="processingPlan,materialsStore,productsStore,state")
     save_excel(pd.DataFrame(parse_processing(rows)), "production_orders", reliable=False)
 
     print("\n🏭 Виробництво (виконані)...")
-    rows = fetch_all("entity/processing")
+    rows = fetch_all("entity/processing", expand="processingPlan,materialsStore,productsStore,state")
     save_excel(pd.DataFrame(parse_processing(rows)), "production_done", reliable=False)
 
     print("\n📋 Технологічні карти...")
-    rows = fetch_all("entity/processingplan", date_filter=False)
+    rows = fetch_all("entity/processingplan", date_filter=False, expand="materials,products")
     save_excel(pd.DataFrame(parse_processingplans(rows)), "processing_plans", reliable=False)
 
     print("\n📈 Звіт: прибутковість по товарах...")
