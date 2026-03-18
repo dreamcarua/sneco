@@ -676,6 +676,131 @@ def main():
                 f"report_profit_prod_{year}_{month:02d}",
                 f"{year}/{month:02d}")
 
+    # ── ОБОРОТИ СУШЕНОГО СИРУ (ключовий виробничий показник) ────────────────
+    print("\n🧀 Обороти сушеного сиру (report/turnover)...")
+    import calendar as _cal2
+
+    # 1. Знаходимо групу товарів "СУШЕНЫЙ сыр"
+    dried_cheese_group_href = None
+    try:
+        pf_resp = requests.get(f"{BASE_URL}/entity/productfolder",
+                               headers=HEADERS, params={"limit": 500})
+        if pf_resp.status_code == 200:
+            for pf in pf_resp.json().get("rows", []):
+                name = pf.get("name", "").strip()
+                if name.upper() in ("СУШЕНЫЙ СЫР", "СУШЕНИЙ СИР", "СУШЕНЫЙ сыр"):
+                    dried_cheese_group_href = pf.get("meta", {}).get("href")
+                    print(f"  ✅ Знайдено групу: {name} → {dried_cheese_group_href}")
+                    break
+            if not dried_cheese_group_href:
+                for pf in pf_resp.json().get("rows", []):
+                    name_u = pf.get("name", "").strip().upper()
+                    if ("СУШЕН" in name_u and "СЫР" in name_u) or ("СУШЕН" in name_u and "СИР" in name_u):
+                        dried_cheese_group_href = pf.get("meta", {}).get("href")
+                        print(f"  ✅ Знайдено групу (часткове): {pf.get('name')}")
+                        break
+        if not dried_cheese_group_href:
+            print("  ⚠️  Не знайдено групу 'СУШЕНЫЙ сыр'. Доступні групи:")
+            if pf_resp.status_code == 200:
+                for pf in pf_resp.json().get("rows", []):
+                    print(f"      - {pf.get('name')}")
+    except Exception as e:
+        print(f"  ⚠️  Помилка пошуку групи: {e}")
+
+    # 2. Отримуємо список продуктів у групі "СУШЕНЫЙ сыр"
+    dried_product_hrefs = []
+    if dried_cheese_group_href:
+        try:
+            pr_resp = requests.get(
+                f"{BASE_URL}/entity/product",
+                headers=HEADERS,
+                params={"filter": f"productFolder={dried_cheese_group_href}", "limit": 100}
+            )
+            if pr_resp.status_code == 200:
+                for p in pr_resp.json().get("rows", []):
+                    href = p.get("meta", {}).get("href")
+                    if href:
+                        dried_product_hrefs.append(href)
+                print(f"  ✅ Продуктів у групі: {len(dried_product_hrefs)}")
+            else:
+                print(f"  ⚠️  entity/product → HTTP {pr_resp.status_code}: {pr_resp.text[:200]}")
+        except Exception as e:
+            print(f"  ⚠️  Products fetch error: {e}")
+
+    # 3. Завантажуємо обороти по місяцях (фільтр по product hrefs)
+    turnover_rows = []
+    if dried_product_hrefs:
+        # Формуємо фільтр: product=href1;product=href2;...
+        product_filter = ";".join([f"product={h}" for h in dried_product_hrefs])
+        for year in range(2023, current_year + 1):
+            for month in range(1, 13):
+                if year == current_year and month > now.month:
+                    break
+                cache_path = OUTPUT_DIR / f"turnover_dried_{year}_{month:02d}.json"
+                is_current = (year == current_year and month == now.month)
+                if not is_current and cache_path.exists():
+                    with open(cache_path) as f:
+                        cached = json.load(f)
+                    turnover_rows.extend(cached)
+                    continue
+                last_day = _cal2.monthrange(year, month)[1]
+                mf = f"{year}-{month:02d}-01 00:00:00"
+                mt = f"{year}-{month:02d}-{last_day} 23:59:59"
+                try:
+                    url = f"{BASE_URL}/report/turnover/all"
+                    t_params = {
+                        "momentFrom": mf,
+                        "momentTo": mt,
+                        "filter": product_filter,
+                        "limit": 100,
+                    }
+                    resp = requests.get(url, headers=HEADERS, params=t_params)
+                    if resp.status_code == 200:
+                        rows = resp.json().get("rows", [])
+                        month_data = []
+                        for row in rows:
+                            assortment = row.get("assortment", {})
+                            product_name = assortment.get("name", "")
+                            uom_meta = assortment.get("uom")
+                            uom_name = ""
+                            if isinstance(uom_meta, dict):
+                                uom_name = uom_meta.get("name", "")
+                            income = row.get("income", {})
+                            outcome = row.get("outcome", {})
+                            on_start = row.get("onPeriodStart", {})
+                            on_end = row.get("onPeriodEnd", {})
+                            rec = {
+                                "ym": f"{year}-{month:02d}",
+                                "year": year,
+                                "month": month,
+                                "product": product_name,
+                                "uom": uom_name,
+                                "income_qty": income.get("quantity", 0),
+                                "income_sum": income.get("sum", 0) / 100,
+                                "outcome_qty": outcome.get("quantity", 0),
+                                "outcome_sum": outcome.get("sum", 0) / 100,
+                                "start_qty": on_start.get("quantity", 0),
+                                "start_sum": on_start.get("sum", 0) / 100,
+                                "end_qty": on_end.get("quantity", 0),
+                                "end_sum": on_end.get("sum", 0) / 100,
+                            }
+                            month_data.append(rec)
+                            turnover_rows.append(rec)
+                        with open(cache_path, 'w') as f:
+                            json.dump(month_data, f, ensure_ascii=False)
+                        total_income = sum(r['income_qty'] for r in month_data)
+                        print(f"  🧀 {year}/{month:02d}: {len(month_data)} позицій, вихід {total_income:.1f} кг")
+                    else:
+                        print(f"  ⚠️  turnover {year}/{month:02d} → HTTP {resp.status_code}: {resp.text[:200]}")
+                except Exception as e:
+                    print(f"  ⚠️  turnover {year}/{month:02d}: {e}")
+
+    if turnover_rows:
+        save_excel(pd.DataFrame(turnover_rows), "turnover_dried_cheese", reliable=False)
+        print(f"  ✅ Обороти сушеного сиру: {len(turnover_rows)} записів")
+    else:
+        print("  ⚠️  Немає даних оборотів сушеного сиру")
+
     # ── Генерація дашборду ────────────────────────────────
     print("\n🎨 Генерую dashboard.html...")
     try:
@@ -1248,6 +1373,38 @@ def generate_dashboard():
         prod_by_techcard = []
         prod_by_product = []
 
+    # ── DRIED CHEESE TURNOVER (ключовий показник — кг сушеного сиру) ─────
+    dried_monthly = []    # [{ym, total_kg, products: [{name, kg}]}]
+    dried_by_product = [] # [{name, total_kg}] — all time
+    try:
+        tc_path = OUTPUT_DIR / "turnover_dried_cheese.xlsx"
+        if tc_path.exists():
+            tc_df = pd.read_excel(tc_path)
+            # Місячна агрегація: income_qty = кг виробленого сушеного сиру
+            for ym in sorted(tc_df['ym'].unique()):
+                m = tc_df[tc_df['ym'] == ym]
+                total_kg = round(float(m['income_qty'].sum()), 2)
+                prods = []
+                for _, row in m.iterrows():
+                    if row['income_qty'] > 0:
+                        prods.append({'name': str(row['product']), 'kg': round(float(row['income_qty']), 2)})
+                prods.sort(key=lambda x: -x['kg'])
+                dried_monthly.append({'ym': ym, 'total_kg': total_kg, 'products': prods})
+            # Загальна розбивка по продуктах
+            prod_totals = tc_df.groupby('product')['income_qty'].sum().reset_index()
+            for _, row in prod_totals.iterrows():
+                if row['income_qty'] > 0:
+                    dried_by_product.append({
+                        'name': str(row['product']),
+                        'total_kg': round(float(row['income_qty']), 2)
+                    })
+            dried_by_product.sort(key=lambda x: -x['total_kg'])
+            print(f"  🧀 Dried cheese: {len(dried_monthly)} міс, {sum(d['total_kg'] for d in dried_monthly):.0f} кг загалом")
+        else:
+            print("  ⚠️  turnover_dried_cheese.xlsx не знайдено — запустіть повну синхронізацію")
+    except Exception as e:
+        print(f"  ⚠️  Dried cheese turnover error: {e}")
+
     # ── SUPPLY (procurement) ──────────────────────────────────────────────
     try:
         sup_df = pd.read_excel(OUTPUT_DIR / "supply.xlsx")
@@ -1283,6 +1440,7 @@ def generate_dashboard():
         'geo_split': geo_split, 'channel_split': channel_split,
         'client_cohort': client_cohort, 'sleeping_clients': sleeping,
         'production': prod_monthly, 'prod_by_techcard': prod_by_techcard, 'prod_by_product': prod_by_product,
+        'dried_monthly': dried_monthly, 'dried_by_product': dried_by_product,
         'supply_monthly': supply_monthly,
         'techcards': techcards,
         'generated': datetime.now().strftime('%d.%m.%Y %H:%M'),
